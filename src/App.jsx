@@ -6,7 +6,7 @@ function App() {
     <div style={{ padding: '40px', fontFamily: 'Arial', maxWidth: '800px', margin: '0 auto' }}>
       
       <h1 style={{ color: '#2c3e50', textAlign: 'center' }}>
-        🖥️ HuntTech Dashboard
+        🖥️ Comutel Service Dashboard
       </h1>
       
       <p style={{ textAlign: 'center' }}>Sistema de gestión v1.0</p>
