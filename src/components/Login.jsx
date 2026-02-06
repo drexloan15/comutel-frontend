@@ -10,7 +10,7 @@ function Login({ alIniciarSesion }) {
 
     const credenciales = { email, password }
 
-    fetch('http://localhost:8080/api/usuarios/login', {
+    fetch('http://192.168.1.173:8080/api/usuarios/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(credenciales)

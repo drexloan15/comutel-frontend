@@ -27,7 +27,7 @@ function TicketForm({ usuarioActual }) {
     // 2. DIAGNÓSTICO: ¿Qué estamos enviando?
     console.log("📤 Enviando paquete al Backend:", nuevoTicket);
 
-    fetch('http://localhost:8080/api/tickets', {
+    fetch('http://192.168.1.173:8080/api/tickets', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'

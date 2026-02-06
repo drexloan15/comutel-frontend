@@ -1,96 +1,67 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 
-function TicketList({ usuarioActual }) { // <--- 1. ¡OJO CON LAS LLAVES AQUÍ!
+function TicketList({ usuarioActual, alSeleccionar }) { // <--- Recibimos alSeleccionar
   const [tickets, setTickets] = useState([])
 
   const cargarTickets = () => {
-    fetch('http://localhost:8080/api/tickets')
-      .then(response => response.json())
-      .then(data => setTickets(data))
-      .catch(error => console.error('Error:', error))
+    // Si es CLIENTE, solo ve SUS tickets. Si es ADMIN, ve TODOS.
+    const url = usuarioActual.rol === 'CLIENTE' 
+        ? `http://192.168.1.173:8080/api/tickets/mis-tickets/${usuarioActual.id}` // (Asegúrate que este endpoint exista o usa el filtro en frontend)
+        : 'http://192.168.1.173:8080/api/tickets';
+
+    // NOTA: Por simplicidad usaremos el de "todos" y filtraremos en JS si no tienes el endpoint de "mis-tickets" creado
+    fetch('http://192.168.1.173:8080/api/tickets')
+      .then(res => res.json())
+      .then(data => {
+         if(usuarioActual.rol === 'CLIENTE') {
+             setTickets(data.filter(t => t.usuario.id === usuarioActual.id))
+         } else {
+             setTickets(data)
+         }
+      })
   }
 
   useEffect(() => {
     cargarTickets()
+    // Auto-refresco cada 10 seg
+    const intervalo = setInterval(cargarTickets, 10000)
+    return () => clearInterval(intervalo)
   }, [])
 
-  // --- ACCIONES ---
-  const atenderTicket = (id) => {
-    // Usamos el ID real del usuario logueado
-    fetch(`http://localhost:8080/api/tickets/${id}/atender/${usuarioActual.id}`, { 
-      method: 'PUT'
-    }).then(() => {
-        alert("¡Ticket asignado a ti!")
-        cargarTickets()
-    })
-  }
-
-  const finalizarTicket = (id) => {
-    fetch(`http://localhost:8080/api/tickets/${id}/finalizar`, {
-      method: 'PUT'
-    }).then(() => {
-        alert("¡Ticket resuelto!")
-        cargarTickets()
-    })
-  }
-
   return (
-    <div style={{ backgroundColor: '#8fc2cf', padding: '20px', borderRadius: '10px', marginTop: '20px' }}>
-      <h2 style={{ color: '#ffffff' }}>
-        🎫 Bandeja de Tickets {usuarioActual.rol === 'TECNICO' ? ' ' : '(Vista Cliente)'}
-      </h2>
-      
-      {tickets.filter(t => {
-        if (usuarioActual.rol === 'ADMIN' || usuarioActual.rol === 'TECNICO') return true;
-        return t.usuario.id === usuarioActual.id;
-      }).map(t => (
-        
-          <div key={t.id} style={{ border: '1px solid #000000', margin: '10px 0', padding: '15px', backgroundColor: 'white', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            
-            {/* Información del Ticket */}
-            <div style={{ maxWidth: '70%' , color: '#2e2d2d' }}>
-              <h3 style={{ margin: '0 0 5px 0' , color: '#000000' }}>{t.titulo}</h3>
-              <p style={{ margin: '0 0 5px 0' }}>{t.descripcion}</p>
-              <small>
-                <strong>Estado:</strong> 
-                <span style={{ 
-                    backgroundColor: t.estado === 'NUEVO' ? '#f1c40f' : t.estado === 'EN_PROCESO' ? '#3498db' : '#27ae60',
-                    color: 'white', padding: '3px 8px', borderRadius: '4px', marginLeft: '5px' 
-                }}>
-                    {t.estado}
-                </span> 
-                | <strong>Cliente:</strong> {t.usuario ? t.usuario.nombre : 'Desconocido'}
-                {t.tecnico && <span> | <strong>Técnico:</strong> {t.tecnico.nombre}</span>}
-              </small>
-            </div>
-
-            {/* BOTONES DE ACCIÓN (SOLO SI ERES TÉCNICO) */}
-            <div>
-              {/* 2. VERIFICACIÓN DE ROL AQUÍ */}
-              {usuarioActual.rol === 'TECNICO' && t.estado === 'NUEVO' && (
+    <div>
+      {tickets.length === 0 ? <p style={{color: '#999'}}>No tienes tickets recientes.</p> : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {tickets.map(t => (
+              <div key={t.id} style={{ 
+                  backgroundColor: 'white', 
+                  padding: '15px', 
+                  borderRadius: '8px', 
+                  borderLeft: `5px solid ${t.estado === 'NUEVO' ? '#f1c40f' : t.estado === 'RESUELTO' ? '#27ae60' : '#3498db'}`,
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+              }}>
+                <div>
+                  <h4 style={{ margin: '0 0 5px 0', color: '#2c3e50' }}>{t.titulo}</h4>
+                  <small style={{ color: '#7f8c8d' }}>
+                    {new Date(t.fechaCreacion || Date.now()).toLocaleDateString()} • {t.estado}
+                  </small>
+                </div>
+                
+                {/* BOTÓN PARA ABRIR CHAT */}
                 <button 
-                  onClick={() => atenderTicket(t.id)}
-                  style={{ backgroundColor: '#3498db', color: 'white', border: 'none', padding: '10px', borderRadius: '5px', cursor: 'pointer' }}>
-                  🙋‍♂️ Atender
+                    onClick={() => alSeleccionar(t)} // <--- ¡AQUÍ ESTÁ LA MAGIA!
+                    style={{ 
+                        background: '#3498db', color: 'white', border: 'none', 
+                        padding: '8px 15px', borderRadius: '5px', cursor: 'pointer' 
+                    }}
+                >
+                    💬 Ver Chat
                 </button>
-              )}
-
-              {usuarioActual.rol === 'TECNICO' && t.estado === 'EN_PROCESO' && (
-                <button 
-                  onClick={() => finalizarTicket(t.id)}
-                  style={{ backgroundColor: '#27ae60', color: 'white', border: 'none', padding: '10px', borderRadius: '5px', cursor: 'pointer' }}>
-                  ✅ Resolver
-                </button>
-              )}
-
-              {t.estado === 'RESUELTO' && (
-                <span style={{ color: 'green', fontWeight: 'bold' }}>Finalizado</span>
-              )}
-            </div>
-
+              </div>
+            ))}
           </div>
-        ))
-      }
+      )}
     </div>
   )
 }
