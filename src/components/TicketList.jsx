@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react'
 
-function TicketList() {
+function TicketList({ usuarioActual }) { // <--- 1. ¡OJO CON LAS LLAVES AQUÍ!
   const [tickets, setTickets] = useState([])
 
-  // Función para recargar la lista
   const cargarTickets = () => {
     fetch('http://localhost:8080/api/tickets')
       .then(response => response.json())
@@ -11,24 +10,21 @@ function TicketList() {
       .catch(error => console.error('Error:', error))
   }
 
-  // Cargar al inicio
   useEffect(() => {
     cargarTickets()
   }, [])
 
   // --- ACCIONES ---
-  
-  // 1. Función para Atender (Simulamos que somos el Técnico con ID 2)
   const atenderTicket = (id) => {
-    fetch(`http://localhost:8080/api/tickets/${id}/atender/2`, { // <--- OJO: El "2" es el ID de Pedro
+    // Usamos el ID real del usuario logueado
+    fetch(`http://localhost:8080/api/tickets/${id}/atender/${usuarioActual.id}`, { 
       method: 'PUT'
     }).then(() => {
         alert("¡Ticket asignado a ti!")
-        cargarTickets() // Recargamos para ver el cambio
+        cargarTickets()
     })
   }
 
-  // 2. Función para Finalizar
   const finalizarTicket = (id) => {
     fetch(`http://localhost:8080/api/tickets/${id}/finalizar`, {
       method: 'PUT'
@@ -39,16 +35,22 @@ function TicketList() {
   }
 
   return (
-    <div style={{ backgroundColor: '#f9f9f9', padding: '20px', borderRadius: '10px', marginTop: '20px' }}>
-      <h2 style={{ color: '#e74c3c' }}>🎫 Bandeja de Entrada (Técnico)</h2>
+    <div style={{ backgroundColor: '#8fc2cf', padding: '20px', borderRadius: '10px', marginTop: '20px' }}>
+      <h2 style={{ color: '#ffffff' }}>
+        🎫 Bandeja de Tickets {usuarioActual.rol === 'TECNICO' ? ' ' : '(Vista Cliente)'}
+      </h2>
       
-      {tickets.length === 0 ? <p>No hay tickets.</p> : tickets.map(t => (
-          <div key={t.id} style={{ border: '1px solid #ddd', margin: '10px 0', padding: '15px', backgroundColor: 'white', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      {tickets.filter(t => {
+        if (usuarioActual.rol === 'ADMIN' || usuarioActual.rol === 'TECNICO') return true;
+        return t.usuario.id === usuarioActual.id;
+      }).map(t => (
+        
+          <div key={t.id} style={{ border: '1px solid #000000', margin: '10px 0', padding: '15px', backgroundColor: 'white', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             
             {/* Información del Ticket */}
-            <div style={{ maxWidth: '70%' }}>
-              <h3 style={{ margin: '0 0 5px 0' }}>{t.titulo}</h3>
-              <p style={{ margin: '0 0 5px 0', color: '#555' }}>{t.descripcion}</p>
+            <div style={{ maxWidth: '70%' , color: '#2e2d2d' }}>
+              <h3 style={{ margin: '0 0 5px 0' , color: '#000000' }}>{t.titulo}</h3>
+              <p style={{ margin: '0 0 5px 0' }}>{t.descripcion}</p>
               <small>
                 <strong>Estado:</strong> 
                 <span style={{ 
@@ -57,14 +59,15 @@ function TicketList() {
                 }}>
                     {t.estado}
                 </span> 
-                | <strong>Cliente:</strong> {t.usuario.nombre}
+                | <strong>Cliente:</strong> {t.usuario ? t.usuario.nombre : 'Desconocido'}
                 {t.tecnico && <span> | <strong>Técnico:</strong> {t.tecnico.nombre}</span>}
               </small>
             </div>
 
-            {/* BOTONES DE ACCIÓN (Dependen del estado) */}
+            {/* BOTONES DE ACCIÓN (SOLO SI ERES TÉCNICO) */}
             <div>
-              {t.estado === 'NUEVO' && (
+              {/* 2. VERIFICACIÓN DE ROL AQUÍ */}
+              {usuarioActual.rol === 'TECNICO' && t.estado === 'NUEVO' && (
                 <button 
                   onClick={() => atenderTicket(t.id)}
                   style={{ backgroundColor: '#3498db', color: 'white', border: 'none', padding: '10px', borderRadius: '5px', cursor: 'pointer' }}>
@@ -72,7 +75,7 @@ function TicketList() {
                 </button>
               )}
 
-              {t.estado === 'EN_PROCESO' && (
+              {usuarioActual.rol === 'TECNICO' && t.estado === 'EN_PROCESO' && (
                 <button 
                   onClick={() => finalizarTicket(t.id)}
                   style={{ backgroundColor: '#27ae60', color: 'white', border: 'none', padding: '10px', borderRadius: '5px', cursor: 'pointer' }}>

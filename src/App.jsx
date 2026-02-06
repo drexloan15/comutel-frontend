@@ -1,23 +1,46 @@
-import UserList from './components/UserList'
-import TicketList from './components/TicketList'
+import { useState, useEffect } from 'react'
+import Login from './components/Login'
+import ClientPortal from './pages/ClientePortal' // <--- Importamos Pagina 1
+import TechPortal from './pages/TechPortal'     // <--- Importamos Pagina 2
 
 function App() {
-  return (
-    <div style={{ padding: '40px', fontFamily: 'Arial', maxWidth: '800px', margin: '0 auto' }}>
-      
-      <h1 style={{ color: '#2c3e50', textAlign: 'center' }}>
-        🖥️ Comutel Service Dashboard
-      </h1>
-      
-      <p style={{ textAlign: 'center' }}>Sistema de gestión v1.0</p>
-      <hr />
+  const [usuarioLogueado, setUsuarioLogueado] = useState(null)
 
-      {/* Aquí insertamos nuestros bloques de Lego */}
-      <UserList />
-      <TicketList />
+  // --- LÓGICA DE LOGIN/LOGOUT (Igual que antes) ---
+  const cerrarSesion = () => {
+    setUsuarioLogueado(null)
+    localStorage.removeItem('sesionComutel')
+  }
 
-    </div>
-  )
+  useEffect(() => {
+    const sesionGuardada = localStorage.getItem('sesionComutel')
+    if (sesionGuardada) {
+      const datos = JSON.parse(sesionGuardada)
+      // (Aquí va tu lógica de 10 minutos si la quieres mantener)
+      setUsuarioLogueado(datos.usuario)
+    }
+  }, [])
+
+  const iniciarSesion = (usuario, recordar) => {
+    setUsuarioLogueado(usuario)
+    const datosSesion = { usuario, recordar, ultimoAcceso: Date.now() }
+    localStorage.setItem('sesionComutel', JSON.stringify(datosSesion))
+  }
+
+  // --- EL TRAFICO ---
+
+  // 1. Si no hay nadie -> LOGIN
+  if (!usuarioLogueado) {
+    return <Login alIniciarSesion={iniciarSesion} />
+  }
+
+  // 2. Si es CLIENTE -> PORTAL USUARIO
+  if (usuarioLogueado.rol === 'CLIENTE') {
+    return <ClientPortal usuario={usuarioLogueado} cerrarSesion={cerrarSesion} />
+  }
+
+  // 3. Si es TECNICO o ADMIN -> COMUTEL SERVICE
+  return <TechPortal usuario={usuarioLogueado} cerrarSesion={cerrarSesion} />
 }
 
 export default App
