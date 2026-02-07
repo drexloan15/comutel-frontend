@@ -4,7 +4,7 @@ function DashboardStats() {
   const [metricas, setMetricas] = useState({ total: 0, nuevos: 0, proceso: 0, resueltos: 0 })
 
   const cargarMetricas = () => {
-    fetch('http://192.168.1.173:8080/api/tickets/metricas')
+    fetch('http://localhost:8080/api/tickets/metricas')
       .then(res => res.json())
       .then(data => setMetricas(data))
       .catch(err => console.error("Error cargando métricas", err))

@@ -4,7 +4,7 @@ function UserList() {
   const [usuarios, setUsuarios] = useState([])
 
   useEffect(() => {
-    fetch('http://192.168.1.173:8080/api/usuarios')
+    fetch('http://localhost:8080/api/usuarios')
       .then(response => response.json())
       .then(data => setUsuarios(data))
       .catch(error => console.error('Error usuarios:', error))

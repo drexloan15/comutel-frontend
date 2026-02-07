@@ -12,7 +12,7 @@ function DetalleTicket({ ticket, usuarioActual, alVolver }) {
   // ... (cargarComentarios sigue IGUAL) ...
   const cargarComentarios = () => {
     if (!ticket?.id) return;
-    fetch(`http://192.168.1.173:8080/api/tickets/${ticket.id}/comentarios`)
+    fetch(`http://localhost:8080/api/tickets/${ticket.id}/comentarios`)
       .then(res => { if (!res.ok) throw new Error("Error"); return res.json(); })
       .then(data => { if (Array.isArray(data)) setComentarios(data); else setComentarios([]); })
       .catch(err => console.error(err));
@@ -48,7 +48,7 @@ function DetalleTicket({ ticket, usuarioActual, alVolver }) {
       imagen: imagenSeleccionada // <--- ENVIAMOS LA FOTO
     }
 
-    fetch(`http://192.168.1.173:8080/api/tickets/${ticket.id}/comentarios`, {
+    fetch(`http://localhost:8080/api/tickets/${ticket.id}/comentarios`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -63,7 +63,7 @@ function DetalleTicket({ ticket, usuarioActual, alVolver }) {
   const cambiarEstado = (nuevoEstado) => {
      // ... (tu código anterior) ...
      const endpoint = nuevoEstado === 'RESUELTO' ? 'finalizar' : `atender/${usuarioActual.id}`;
-     fetch(`http://192.168.1.173:8080/api/tickets/${ticket.id}/${endpoint}`, { method: 'PUT' })
+     fetch(`http://localhost:8080/api/tickets/${ticket.id}/${endpoint}`, { method: 'PUT' })
       .then(() => {
         alert(`Ticket ${nuevoEstado}!`)
         setTicketActualizado({...ticketActualizado, estado: nuevoEstado, tecnico: usuarioActual})

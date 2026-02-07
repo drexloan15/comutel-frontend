@@ -12,7 +12,7 @@ function ClientPortal({ usuario, cerrarSesion }) {
   const [ticketSeleccionado, setTicketSeleccionado] = useState(null)
 
   useEffect(() => {
-    fetch('http://192.168.1.173:8080/api/articulos')
+    fetch('http://localhost:8080/api/articulos')
       .then(res => res.json())
       .then(data => setArticulos(data))
       .catch(err => console.error("Error cargando KB", err))

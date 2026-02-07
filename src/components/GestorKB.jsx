@@ -8,7 +8,7 @@ function GestorKB() {
 
   // Cargar artículos al iniciar
   const cargarArticulos = () => {
-    fetch('http://192.168.1.173:8080/api/articulos')
+    fetch('http://localhost:8080/api/articulos')
       .then(res => res.json())
       .then(data => setArticulos(data))
   }
@@ -20,7 +20,7 @@ function GestorKB() {
     e.preventDefault()
     const nuevo = { titulo, contenido }
 
-    fetch('http://192.168.1.173:8080/api/articulos', {
+    fetch('http://localhost:8080/api/articulos', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(nuevo)
@@ -35,7 +35,7 @@ function GestorKB() {
   // Eliminar artículo
   const eliminar = (id) => {
     if(!confirm("¿Borrar este artículo?")) return;
-    fetch(`http://192.168.1.173:8080/api/articulos/${id}`, { method: 'DELETE' })
+    fetch(`http://localhost:8080/api/articulos/${id}`, { method: 'DELETE' })
       .then(() => cargarArticulos())
   }
 

@@ -6,11 +6,11 @@ function TicketList({ usuarioActual, alSeleccionar }) { // <--- Recibimos alSele
   const cargarTickets = () => {
     // Si es CLIENTE, solo ve SUS tickets. Si es ADMIN, ve TODOS.
     const url = usuarioActual.rol === 'CLIENTE' 
-        ? `http://192.168.1.173:8080/api/tickets/mis-tickets/${usuarioActual.id}` // (Asegúrate que este endpoint exista o usa el filtro en frontend)
-        : 'http://192.168.1.173:8080/api/tickets';
+        ? `http://localhost:8080/api/tickets/mis-tickets/${usuarioActual.id}` // (Asegúrate que este endpoint exista o usa el filtro en frontend)
+        : 'http://localhost:8080/api/tickets';
 
     // NOTA: Por simplicidad usaremos el de "todos" y filtraremos en JS si no tienes el endpoint de "mis-tickets" creado
-    fetch('http://192.168.1.173:8080/api/tickets')
+    fetch('http://localhost:8080/api/tickets')
       .then(res => res.json())
       .then(data => {
          if(usuarioActual.rol === 'CLIENTE') {

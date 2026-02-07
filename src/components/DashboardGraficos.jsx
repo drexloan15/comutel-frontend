@@ -18,7 +18,7 @@ function DashboardGraficos() {
 
   useEffect(() => {
     // 1. Pedimos los números reales al Backend
-    fetch('http://192.168.1.173:8080/api/tickets/metricas')
+    fetch('http://localhost:8080/api/tickets/metricas')
       .then(res => res.json())
       .then(metricas => {
         // 2. Transformamos los datos para que Recharts los entienda

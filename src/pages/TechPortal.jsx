@@ -12,7 +12,7 @@ function TechPortal({ usuario, cerrarSesion }) {
 
   // Cargar métricas
   useEffect(() => {
-    fetch('http://192.168.1.173:8080/api/tickets/metricas')
+    fetch('http://localhost:8080/api/tickets/metricas')
       .then(res => res.json())
       .then(data => setMetricas(data))
   }, [])
