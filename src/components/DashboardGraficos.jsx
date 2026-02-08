@@ -1,116 +1,90 @@
-import { useEffect, useState } from 'react'
-import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts'
+import { useEffect, useState } from "react";
+import { 
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell 
+} from "recharts";
 
 function DashboardGraficos() {
-  const [datosEstado, setDatosEstado] = useState([])
+  // 1. Estado para guardar los datos que vienen del Backend
+  const [datos, setDatos] = useState([]);
+  const [cargando, setCargando] = useState(true);
 
-  // COLORES PARA LA GRÁFICA (Amarillo, Azul, Verde, Gris)
-  const COLORES_ESTADO = ['#f1c40f', '#3498db', '#27ae60', '#95a5a6'];
-
-  // DATOS SIMULADOS (Para que se vea lleno como en tu foto)
-  const datosOrigen = [
-    { name: 'Email', value: 400 },
-    { name: 'Teléfono', value: 300 },
-    { name: 'WhatsApp', value: 100 },
-    { name: 'Portal Web', value: 200 },
-  ];
-  const COLORES_ORIGEN = ['#8884d8', '#82ca9d', '#ffc658', '#ff8042'];
+  // 2. Colores para las barras (Verde, Amarillo, Azul)
+  const COLORES = {
+    "Nuevos": "#10B981",    // Verde Esmeralda
+    "En Proceso": "#F59E0B", // Amarillo Ambar
+    "Resueltos": "#3B82F6"   // Azul Real
+  };
 
   useEffect(() => {
-    // 1. Pedimos los números reales al Backend
-    fetch('http://localhost:8080/api/tickets/metricas')
-      .then(res => res.json())
-      .then(metricas => {
-        // 2. Transformamos los datos para que Recharts los entienda
-        const dataTransformada = [
-          { name: 'Nuevos', value: metricas.nuevos },
-          { name: 'En Proceso', value: metricas.proceso },
-          { name: 'Resueltos', value: metricas.resueltos },
-        ];
-        // Filtramos los que sean 0 para que no salga feo el gráfico
-        setDatosEstado(dataTransformada.filter(d => d.value > 0));
-      })
-  }, [])
+    cargarMetricas();
+    
+    // Opcional: Recargar cada 10 segundos para ver cambios en vivo
+    const intervalo = setInterval(cargarMetricas, 10000);
+    return () => clearInterval(intervalo);
+  }, []);
 
-  // Componente de Tarjeta para reutilizar diseño
-  const CardGrafico = ({ titulo, children }) => (
-    <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', height: '350px', display: 'flex', flexDirection: 'column' }}>
-      <h4 style={{ margin: '0 0 20px 0', color: '#2c3e50', borderBottom: '1px solid #eee', paddingBottom: '10px' }}>
-        📉 {titulo}
-      </h4>
-      <div style={{ flex: 1, width: '100%', minHeight: 0 }}>
-        {children}
-      </div>
-    </div>
-  )
+  const cargarMetricas = async () => {
+    try {
+      // Petición al Backend
+      const respuesta = await fetch("http://localhost:8080/api/tickets/metricas");
+      const metricas = await respuesta.json();
+
+      // 3. TRADUCCIÓN: Convertir el Objeto del Backend en Array para Recharts
+      const datosFormateados = [
+        { name: "Nuevos", cantidad: metricas.nuevos || 0 },
+        { name: "En Proceso", cantidad: metricas.proceso || 0 },
+        { name: "Resueltos", cantidad: metricas.resueltos || 0 }
+      ];
+
+      setDatos(datosFormateados);
+      setCargando(false);
+    } catch (error) {
+      console.error("Error cargando gráficos:", error);
+      setCargando(false);
+    }
+  };
+
+  if (cargando) return <p className="text-center text-gray-500">Cargando estadísticas...</p>;
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '20px' }}>
+    <div className="bg-white p-6 rounded-lg shadow-md mb-8">
+      <h2 className="text-xl font-bold mb-4 text-gray-700">Estado de los Tickets</h2>
       
-      {/* GRÁFICO 1: ESTADO DE TICKETS (DONA) */}
-      <CardGrafico titulo="Estado Actual de Incidencias">
-        {datosEstado.length > 0 ? (
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie
-                data={datosEstado}
-                cx="50%"
-                cy="50%"
-                innerRadius={60} // Esto hace el agujero de la dona
-                outerRadius={80}
-                paddingAngle={5}
-                dataKey="value"
-              >
-                {datosEstado.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORES_ESTADO[index % COLORES_ESTADO.length]} />
-                ))}
-              </Pie>
-              <Tooltip />
-              <Legend verticalAlign="bottom" height={36}/>
-            </PieChart>
-          </ResponsiveContainer>
-        ) : <p style={{textAlign: 'center', color: '#aaa', marginTop: '50px'}}>No hay datos suficientes</p>}
-      </CardGrafico>
-
-      {/* GRÁFICO 2: ORIGEN DEL TICKET (TORTA RELLENA) */}
-      <CardGrafico titulo="Origen del Ticket (Simulado)">
-        <ResponsiveContainer width="100%" height="100%">
-          <PieChart>
-            <Pie
-              data={datosOrigen}
-              cx="50%"
-              cy="50%"
-              labelLine={false}
-              outerRadius={80}
-              fill="#8884d8"
-              dataKey="value"
-              label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
-            >
-              {datosOrigen.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={COLORES_ORIGEN[index % COLORES_ORIGEN.length]} />
-              ))}
-            </Pie>
+      <div style={{ width: '100%', height: 300 }}>
+        <ResponsiveContainer>
+          <BarChart data={datos}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="name" />
+            <YAxis allowDecimals={false} /> {/* Para no mostrar "1.5 tickets" */}
             <Tooltip />
-            <Legend verticalAlign="bottom" />
-          </PieChart>
+            <Legend />
+            <Bar dataKey="cantidad" name="Cantidad de Tickets">
+              {/* Pintar cada barra de su color correspondiente */}
+              {datos.map((entry, index) => (
+                <Cell key={`cell-${index}`} fill={COLORES[entry.name]} />
+              ))}
+            </Bar>
+          </BarChart>
         </ResponsiveContainer>
-      </CardGrafico>
+      </div>
 
-      {/* GRÁFICO 3: BARRAS (EXTRA) */}
-      <CardGrafico titulo="Volumen por Prioridad">
-         <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={datosOrigen}> {/* Usamos datos simulados por ahora */}
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" />
-              <YAxis />
-              <Tooltip />
-              <Bar dataKey="value" fill="#3498db" />
-            </BarChart>
-         </ResponsiveContainer>
-      </CardGrafico>
-
+      {/* Resumen Numérico Abajo */}
+      <div className="grid grid-cols-3 gap-4 mt-4 text-center">
+        <div className="p-4 bg-green-50 rounded-lg">
+          <p className="text-sm text-gray-500">Nuevos</p>
+          <p className="text-2xl font-bold text-green-600">{datos[0]?.cantidad}</p>
+        </div>
+        <div className="p-4 bg-yellow-50 rounded-lg">
+          <p className="text-sm text-gray-500">En Proceso</p>
+          <p className="text-2xl font-bold text-yellow-600">{datos[1]?.cantidad}</p>
+        </div>
+        <div className="p-4 bg-blue-50 rounded-lg">
+          <p className="text-sm text-gray-500">Resueltos</p>
+          <p className="text-2xl font-bold text-blue-600">{datos[2]?.cantidad}</p>
+        </div>
+      </div>
     </div>
-  )
+  );
 }
 
-export default DashboardGraficos
+export default DashboardGraficos;

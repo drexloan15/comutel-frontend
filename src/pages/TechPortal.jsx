@@ -1,107 +1,120 @@
-import { useState, useEffect } from 'react'
-import PanelInicial from '../components/PanelInicial'
-import TablaIncidencias from '../components/TablaIncidencias'
-import DetalleTicket from '../components/DetalleTicket'
-import GestorKB from '../components/GestorKB'
-import DashboardGraficos from '../components/DashboardGraficos'
+import { useState } from 'react';
+import Sidebar from '../components/layout/Sidebar'; 
+import PanelSLA from './PanelSLA';                
+import DashboardGraficos from '../components/DashboardGraficos';
+import TicketTable from '../components/TicketTable';
+import DetalleTicket from '../components/DetalleTicket'; 
+import AdminUsers from '../components/AdminUsers';
+
+// Placeholders para futuras secciones
+const AdminPanel = () => <div className="p-10 text-xl text-center">⚙️ Panel de Configuración (Próximamente)</div>;
+const KnowledgeBase = () => <div className="p-10 text-xl text-center">📚 Base de Conocimiento (Próximamente)</div>;
 
 function TechPortal({ usuario, cerrarSesion }) {
-  const [seccionActual, setSeccionActual] = useState('PANEL')
-  const [metricas, setMetricas] = useState({ total: 0, nuevos: 0, proceso: 0, resueltos: 0 })
-  const [ticketSeleccionado, setTicketSeleccionado] = useState(null)
+    const [seccionActual, setSeccionActual] = useState('PANEL');
+    const [ticketSeleccionado, setTicketSeleccionado] = useState(null);
 
-  // Cargar métricas
-  useEffect(() => {
-    fetch('http://localhost:8080/api/tickets/metricas')
-      .then(res => res.json())
-      .then(data => setMetricas(data))
-  }, [])
+    // Función para manejar el contenido dinámico
+    const renderContenido = () => {
+        // 1. Si hay un ticket seleccionado, mostramos el DETALLE (ocupa toda la pantalla)
+        if (ticketSeleccionado) {
+            return (
+                <DetalleTicket 
+                    ticket={ticketSeleccionado} 
+                    usuarioActual={usuario}
+                    alVolver={() => setTicketSeleccionado(null)} 
+                />
+            );
+        }
 
-  // --- ESTILOS ---
-  const layoutStyle = { display: 'flex', minHeight: '100vh', fontFamily: 'Arial, sans-serif' }
-  const sidebarStyle = { width: '250px', backgroundColor: '#2c3e50', color: 'white', display: 'flex', flexDirection: 'column', flexShrink: 0 } // flexShrink: 0 evita que se aplaste
-  const mainStyle = { flex: 1, backgroundColor: '#ecf0f1', padding: '20px', overflowX: 'hidden' } // overflowX evita scroll horizontal innecesario
-  
-  const menuItemStyle = (activo) => ({
-    padding: '15px 20px',
-    cursor: 'pointer',
-    backgroundColor: activo ? '#34495e' : 'transparent',
-    borderLeft: activo ? '4px solid #3498db' : '4px solid transparent',
-    transition: '0.2s',
-    display: 'flex', alignItems: 'center', gap: '10px'
-  })
+        // 2. Si no, mostramos la sección elegida en el menú
+        switch (seccionActual) {
+            case 'PANEL':
+                return (
+                    <div className="flex flex-col gap-8 p-6">
+                        {/* A. Tarjetas de SLA (Rojo/Amarillo/Verde) */}
+                        <PanelSLA />
 
-  return (
-    <div style={layoutStyle}>
-      
-      {/* 1. SIDEBAR IZQUIERDO */}
-      <div style={sidebarStyle}>
-        <div style={{ padding: '20px', borderBottom: '1px solid #34495e' }}>
-          <h2 style={{ margin: 0, fontSize: '18px' }}>📡 Comutel Service</h2>
-          <small style={{ color: '#bdc3c7' }}>Portal Técnico</small>
-        </div>
+                        {/* B. Gráficos Resumidos */}
+                        <div>
+                           <h3 className="text-gray-500 font-bold mb-2 uppercase text-sm">📊 Métricas en Vivo</h3>
+                           <DashboardGraficos />
+                        </div>
 
-        <nav style={{ flex: 1, marginTop: '20px' }}>
-          <div style={menuItemStyle(seccionActual === 'PANEL')} onClick={() => {setSeccionActual('PANEL'); setTicketSeleccionado(null)}}>
-            <span>🏠</span> Panel Inicial
-          </div>
-          <div style={menuItemStyle(seccionActual === 'DASHBOARD')} onClick={() => {setSeccionActual('DASHBOARD'); setTicketSeleccionado(null)}}>
-             <span>📊</span> Dashboards
-          </div>
-          <div style={menuItemStyle(seccionActual === 'TICKETS')} onClick={() => {setSeccionActual('TICKETS'); setTicketSeleccionado(null)}}>
-             <span>📋</span> Incidencias / Peticiones
-          </div>
-          <div style={menuItemStyle(seccionActual === 'KB')} onClick={() => {setSeccionActual('KB'); setTicketSeleccionado(null)}}>
-             <span>📚</span> Knowledge Base
-          </div>
-        </nav>
+                        {/* C. Tabla de Gestión Rápida */}
+                        <div>
+                           <h3 className="text-gray-500 font-bold mb-2 uppercase text-sm">🚨 Gestión de Tickets</h3>
+                           {/* ¡AQUÍ PASAMOS LA FUNCIÓN PARA ABRIR EL TICKET! */}
+                           <TicketTable alSeleccionar={setTicketSeleccionado} />
+                        </div>
+                    </div>
+                );
 
-        <div style={{ padding: '20px', borderTop: '1px solid #34495e' }}>
-          <p style={{ margin: '0 0 10px 0', fontSize: '14px' }}>👤 {usuario.nombre}</p>
-          <button onClick={cerrarSesion} style={{ width: '100%', padding: '8px', background: '#c0392b', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-            Cerrar Sesión
-          </button>
-        </div>
-      </div>
+            case 'DASHBOARD':
+                return (
+                    <div className="p-6">
+                        <h2 className="text-2xl font-bold mb-4">Business Intelligence</h2>
+                        <DashboardGraficos />
+                    </div>
+                );
 
-      {/* 2. ÁREA PRINCIPAL DERECHA */}
-      <div style={mainStyle}>
-        
-        {/* Header Dinámico */}
-        <div style={{ marginBottom: '20px', borderBottom: '1px solid #ccc', paddingBottom: '10px' }}>
-          <h2 style={{ color: '#2c3e50', margin: 0 }}>
-            {ticketSeleccionado ? `Atendiendo Ticket #${ticketSeleccionado.id}` : 
-              (seccionActual === 'PANEL' ? 'Panel de Control' : 
-               seccionActual === 'DASHBOARD' ? 'Indicadores de Rendimiento' :
-               seccionActual === 'TICKETS' ? 'Gestión de Incidencias' : 
-               'Base de Conocimiento')}
-          </h2>
-        </div>
+            case 'TICKETS':
+                return (
+                    <div className="p-6">
+                        <h2 className="text-2xl font-bold mb-4">Bandeja de Entrada</h2>
+                        <TicketTable alSeleccionar={setTicketSeleccionado} /> 
+                    </div>
+                );
 
-        {/* CONTENIDO CAMBIANTE */}
-        {ticketSeleccionado ? (
-            <DetalleTicket 
-                ticket={ticketSeleccionado} 
-                usuarioActual={usuario}
-                alVolver={() => setTicketSeleccionado(null)} 
+            case 'KB':
+                return <KnowledgeBase />;
+
+            case 'ADMIN':
+                // Si es admin, mostramos la gestión de usuarios
+                return (usuario.rol === 'ADMIN' || usuario.rol === 'TECNICO') ?(
+                    <div className="p-6">
+                        <AdminUsers />
+                        {/* Aquí luego pondremos AdminGroups también */}
+                    </div>
+                ) : (
+                    <p className="p-6 text-red-500">Acceso Denegado ⛔</p>
+                );
+
+            default:
+                return <PanelSLA />;
+        }
+    };
+
+    return (
+        <div className="flex h-screen bg-slate-100 font-sans overflow-hidden">
+            {/* BARRA LATERAL IZQUIERDA */}
+            <Sidebar 
+                seccionActual={seccionActual} 
+                setSeccionActual={(seccion) => { setSeccionActual(seccion); setTicketSeleccionado(null); }}
+                cerrarSesion={cerrarSesion}
+                esAdmin={usuario.rol === 'ADMIN'}
             />
-        ) : (
-            <>
-                {seccionActual === 'PANEL' && <PanelInicial metricas={metricas} />}
-                {seccionActual === 'DASHBOARD' && <DashboardGraficos />}
-                {seccionActual === 'TICKETS' && (
-                    <TablaIncidencias 
-                        usuarioActual={usuario} 
-                        alSeleccionar={(t) => setTicketSeleccionado(t)} 
-                    />
-                )}
-                {seccionActual === 'KB' && <GestorKB />}
-            </>
-        )}
 
-      </div>
-    </div>
-  )
+            {/* ÁREA PRINCIPAL DERECHA */}
+            <main className="flex-1 overflow-auto relative">
+                {/* Header Superior */}
+                <header className="bg-white p-4 shadow-sm sticky top-0 z-10 flex justify-between items-center">
+                    <h1 className="text-lg font-semibold text-slate-700">
+                        {ticketSeleccionado ? `Visualizando Ticket #${ticketSeleccionado.id}` : 
+                         seccionActual === 'PANEL' ? 'Centro de Control SLA' : seccionActual}
+                    </h1>
+                    <div className="text-sm text-slate-500">
+                        Usuario: <strong>{usuario.nombre}</strong>
+                    </div>
+                </header>
+
+                {/* Contenido Variable */}
+                <div className="min-h-full">
+                    {renderContenido()}
+                </div>
+            </main>
+        </div>
+    );
 }
 
-export default TechPortal
+export default TechPortal;

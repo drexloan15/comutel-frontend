@@ -1,191 +1,208 @@
-import { useState, useEffect, useRef } from 'react' // <--- useRef IMPORTANTE
+import { useEffect, useState, useRef , useLayoutEffect} from "react";
 
 function DetalleTicket({ ticket, usuarioActual, alVolver }) {
-  const [comentarios, setComentarios] = useState([])
-  const [nuevoMensaje, setNuevoMensaje] = useState('')
-  const [imagenSeleccionada, setImagenSeleccionada] = useState(null) // <--- NUEVO
-  const [ticketActualizado, setTicketActualizado] = useState(ticket)
-  
-  // Referencia para el input de archivo oculto
-  const fileInputRef = useRef(null)
+  const [comentarios, setComentarios] = useState([]);
+  const [historial, setHistorial] = useState([]);
+  const [nuevoComentario, setNuevoComentario] = useState("");
+  const [cargando, setCargando] = useState(true);
 
-  // ... (cargarComentarios sigue IGUAL) ...
-  const cargarComentarios = () => {
-    if (!ticket?.id) return;
-    fetch(`http://localhost:8080/api/tickets/${ticket.id}/comentarios`)
-      .then(res => { if (!res.ok) throw new Error("Error"); return res.json(); })
-      .then(data => { if (Array.isArray(data)) setComentarios(data); else setComentarios([]); })
-      .catch(err => console.error(err));
-  }
+  // Referencia para el scroll automático
+  const mensajesEndRef = useRef(null);
+  const chatContainerRef = useRef(null);
+  const [esPrimeraCarga, setEsPrimeraCarga] = useState(true);
 
+  // Cargar datos iniciales y polling
   useEffect(() => {
-    cargarComentarios()
-    const intervalo = setInterval(cargarComentarios, 5000)
-    return () => clearInterval(intervalo)
-  }, [ticket.id])
+    cargarDatos(); 
+    const intervalo = setInterval(() => cargarDatos(true), 3000);
+    return () => clearInterval(intervalo);
+  }, [ticket.id]);
 
-  // --- NUEVO: MANEJAR SELECCIÓN DE IMAGEN ---
-  const manejarSeleccionArchivo = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      // Convertir imagen a Base64
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagenSeleccionada(reader.result); // Guardamos la cadena larga
-      };
-      reader.readAsDataURL(file);
+  // Efecto para bajar el scroll cuando llegan mensajes nuevos
+  useLayoutEffect(() => {
+    const container = chatContainerRef.current;
+    if (!container) return;
+
+    // 1. Si es la primera vez que carga, bajamos sí o sí
+    if (esPrimeraCarga && comentarios.length > 0) {
+      mensajesEndRef.current?.scrollIntoView({ behavior: "auto" });
+      setEsPrimeraCarga(false);
+      return;
     }
-  }
 
-  // --- MODIFICADO: ENVIAR CON IMAGEN ---
-  const enviarComentario = (e) => {
-    e.preventDefault()
-    if (!nuevoMensaje.trim() && !imagenSeleccionada) return; // Permitir enviar si hay imagen aunque no haya texto
+    // 2. Medimos: ¿Qué tan lejos está el usuario del fondo?
+    const { scrollHeight, scrollTop, clientHeight } = container;
+    const distanciaDelFondo = scrollHeight - scrollTop - clientHeight;
+    
+    // 3. REGLA DE ORO: Solo bajamos si el usuario ya estaba cerca del fondo (ej. a menos de 150px)
+    // Si el usuario subió para leer (distancia > 150), NO lo movemos.
+    const estabaCercaDelFondo = distanciaDelFondo < 150;
+
+    if (estabaCercaDelFondo) {
+      mensajesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [comentarios]);
+  
+
+  const cargarDatos = async (silencioso = false) => {
+    if (!silencioso) setCargando(true);
+    try {
+      const resComentarios = await fetch(`http://localhost:8080/api/tickets/${ticket.id}/comentarios`);
+      const dataComentarios = await resComentarios.json();
+      
+      // Solo actualizamos si hay cambios reales para evitar parpadeos (opcional pero recomendado)
+      if (JSON.stringify(dataComentarios) !== JSON.stringify(comentarios)) {
+          setComentarios(dataComentarios);
+      }
+
+      const resHistorial = await fetch(`http://localhost:8080/api/tickets/${ticket.id}/historial`);
+      if (resHistorial.ok) {
+        const dataHistorial = await resHistorial.json();
+        setHistorial(dataHistorial);
+      }
+    } catch (error) {
+      console.error("Error cargando detalles:", error);
+    } finally {
+      if (!silencioso) setCargando(false);
+    }
+  };
+
+  const enviarComentario = async () => {
+    if (!nuevoComentario.trim()) return;
 
     const payload = {
-      texto: nuevoMensaje,
-      autorId: usuarioActual.id,
-      imagen: imagenSeleccionada // <--- ENVIAMOS LA FOTO
-    }
+      texto: nuevoComentario,
+      autorId: usuarioActual.id
+    };
 
-    fetch(`http://localhost:8080/api/tickets/${ticket.id}/comentarios`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    await fetch(`http://localhost:8080/api/tickets/${ticket.id}/comentarios`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
-    }).then(() => {
-      setNuevoMensaje('')
-      setImagenSeleccionada(null) // Limpiar foto
-      cargarComentarios()
-    })
-  }
+    });
 
-  // ... (cambiarEstado sigue IGUAL) ...
-  const cambiarEstado = (nuevoEstado) => {
-     // ... (tu código anterior) ...
-     const endpoint = nuevoEstado === 'RESUELTO' ? 'finalizar' : `atender/${usuarioActual.id}`;
-     fetch(`http://localhost:8080/api/tickets/${ticket.id}/${endpoint}`, { method: 'PUT' })
-      .then(() => {
-        alert(`Ticket ${nuevoEstado}!`)
-        setTicketActualizado({...ticketActualizado, estado: nuevoEstado, tecnico: usuarioActual})
-      })
-  }
+    setNuevoComentario("");
+    cargarDatos(true); // Recargar chat inmediatamente
+  };
 
-  const burbujaStyle = (esMio) => ({
-    backgroundColor: esMio ? '#dcf8c6' : 'white',
-    alignSelf: esMio ? 'flex-end' : 'flex-start',
-    padding: '10px',
-    borderRadius: '10px',
-    margin: '5px 0',
-    maxWidth: '70%',
-    boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
-    border: esMio ? '1px solid #cfeeb8' : '1px solid #ddd'
-  })
+  const formatearFecha = (fechaString) => {
+    if (!fechaString) return "-";
+    const fecha = new Date(fechaString);
+    return fecha.toLocaleString("es-PE", { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+  };
 
-  if (!ticketActualizado) return <div>Cargando...</div>;
+  const obtenerIconoAccion = (accion) => {
+    if (accion === 'CREACIÓN') return '✨';
+    if (accion === 'REASIGNACIÓN') return '🔀';
+    if (accion === 'ATENCIÓN') return '👨‍🔧';
+    if (accion === 'RESOLUCIÓN') return '✅';
+    return '📝';
+  };
+
+  if (cargando) return <div className="p-10 text-center">Cargando expediente...</div>;
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '20px', height: '80vh' }}>
-      
-      {/* CHAT */}
-      <div style={{ display: 'flex', flexDirection: 'column', backgroundColor: '#e5ddd5', borderRadius: '8px', overflow: 'hidden' }}>
-        
-        {/* Header */}
-        <div style={{ padding: '15px', backgroundColor: '#f0f2f5', borderBottom: '1px solid #ddd', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <button onClick={alVolver} style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '18px' }}>⬅</button>
-          <div>
-            <h3 style={{ margin: 0, color: '#2c3e50' }}>{ticketActualizado.titulo}</h3>
-            <small>REQ-{ticketActualizado.id} | {ticketActualizado.usuario?.nombre}</small>
-          </div>
-        </div>
-
-        {/* Mensajes */}
-        <div style={{ flex: 1, padding: '20px', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
-          
-          <div style={{ ...burbujaStyle(false), backgroundColor: '#fff3cd', border: '1px solid #ffeeba', width: '90%' }}>
-            <strong>Descripción:</strong>
-            <p style={{ margin: '5px 0' }}>{ticketActualizado.descripcion}</p>
-          </div>
-
-          {Array.isArray(comentarios) && comentarios.map(c => {
-             const esMio = c.autor?.id === usuarioActual.id;
-             return (
-               <div key={c.id} style={burbujaStyle(esMio)}>
-                 <strong style={{ fontSize: '11px', color: '#555' }}>{c.autor?.nombre}</strong>
-                 
-                 {/* RENDERIZAR IMAGEN SI EXISTE */}
-                 {c.imagenBase64 && (
-                    <img 
-                        src={c.imagenBase64} 
-                        alt="adjunto" 
-                        style={{ display: 'block', maxWidth: '100%', borderRadius: '5px', marginTop: '5px', cursor: 'pointer' }}
-                        onClick={() => window.open(c.imagenBase64)} // Click para ver grande
-                    />
-                 )}
-
-                 <p style={{ margin: '2px 0' }}>{c.texto}</p>
-                 <small style={{ fontSize: '10px', color: '#999', float: 'right' }}>{c.fecha ? new Date(c.fecha).toLocaleTimeString() : ''}</small>
-               </div>
-             )
-          })}
-        </div>
-
-        {/* --- AREA DE INPUT --- */}
-        <div style={{ backgroundColor: '#f0f2f5' }}>
-            {/* Previsualización de imagen seleccionada */}
-            {imagenSeleccionada && (
-                <div style={{ padding: '5px 10px', display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: '#e1e1e1' }}>
-                    <span style={{fontSize: '12px'}}>📷 Imagen lista para enviar</span>
-                    <button onClick={() => setImagenSeleccionada(null)} style={{background:'red', color:'white', border:'none', borderRadius:'50%', width:'20px', height:'20px', cursor:'pointer'}}>x</button>
-                </div>
-            )}
-
-            <form onSubmit={enviarComentario} style={{ padding: '10px', display: 'flex', gap: '10px', alignItems: 'center' }}>
-            
-            {/* BOTÓN CLIP (INPUT OCULTO) */}
-            <input 
-                type="file" 
-                accept="image/*" 
-                style={{ display: 'none' }} 
-                ref={fileInputRef}
-                onChange={manejarSeleccionArchivo}
-            />
-            <button 
-                type="button" 
-                onClick={() => fileInputRef.current.click()} // Simula click en el input
-                style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer' }}
-                title="Adjuntar imagen"
-            >
-                📎
-            </button>
-
-            <input 
-                type="text" 
-                value={nuevoMensaje}
-                onChange={(e) => setNuevoMensaje(e.target.value)}
-                placeholder="Escribe..." 
-                style={{ flex: 1, padding: '10px', borderRadius: '20px', border: '1px solid #ccc' }}
-            />
-            <button type="submit" style={{ background: '#3498db', color: 'white', border: 'none', borderRadius: '50%', width: '40px', height: '40px', cursor: 'pointer' }}>➤</button>
-            </form>
-        </div>
+    <div className="flex flex-col h-full">
+      {/* HEADER */}
+      <div className="flex items-center gap-4 mb-6">
+        <button onClick={alVolver} className="text-gray-500 hover:text-blue-600 font-bold text-xl">← Volver</button>
+        <h2 className="text-2xl font-bold text-gray-800">Expediente #{ticket.id}: {ticket.titulo}</h2>
       </div>
 
-      {/* INFO DERECHA (Igual que antes) */}
-      <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' }}>
-        {/* ... (Copia aquí el contenido de la columna derecha de tu versión anterior con los botones de acción) ... */}
-        <h4 style={{ color: '#2c3e50' }}>Detalles</h4>
-        <p><strong>Estado:</strong> {ticketActualizado.estado}</p>
-        <p><strong>Solicitante:</strong> {ticketActualizado.usuario?.nombre}</p>
-        {/* (Solo pon los botones de acción como en el paso anterior) */}
-         {(usuarioActual.rol === 'TECNICO' || usuarioActual.rol === 'ADMIN') && ticketActualizado.estado === 'NUEVO' && (
-              <button onClick={() => cambiarEstado('EN_PROCESO')} style={{width:'100%', padding:'10px', background:'#3498db', color:'white', border:'none', borderRadius:'5px', cursor:'pointer'}}>Asignármelo</button>
-         )}
-         {(usuarioActual.rol === 'TECNICO' || usuarioActual.rol === 'ADMIN') && ticketActualizado.estado === 'EN_PROCESO' && (
-              <button onClick={() => cambiarEstado('RESUELTO')} style={{width:'100%', padding:'10px', background:'#27ae60', color:'white', border:'none', borderRadius:'5px', cursor:'pointer'}}>Resolver</button>
-         )}
+      <div className="flex flex-col lg:flex-row gap-6 h-full">
+        
+        {/* COLUMNA IZQUIERDA */}
+        <div className="flex-1 flex flex-col gap-6">
+          <div className="bg-white p-6 rounded-lg shadow border-l-4 border-blue-500">
+            <h3 className="text-sm font-bold text-gray-400 uppercase mb-2">Descripción del Problema</h3>
+            <p className="text-gray-800 text-lg leading-relaxed">{ticket.descripcion}</p>
+            <div className="mt-4 flex gap-4 text-sm text-gray-500">
+                <span>📅 Creado: {formatearFecha(ticket.fechaCreacion)}</span>
+                <span>👤 Cliente: {ticket.usuario?.nombre}</span>
+            </div>
+          </div>
+
+          {/* CHAT */}
+          <div className="bg-white p-6 rounded-lg shadow flex-1 flex flex-col">
+            <h3 className="text-lg font-bold text-gray-700 mb-4">💬 Comunicación</h3>
+            
+            <div ref={chatContainerRef} className="flex-1 overflow-y-auto mb-4 space-y-4 max-h-96 p-2 bg-gray-50 rounded">
+              {comentarios.length === 0 && <p className="text-center text-gray-400 mt-10">No hay comentarios aún.</p>}
+              
+              {comentarios.map((c) => (
+                <div key={c.id} className={`flex ${c.autor?.email === usuarioActual.email ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[80%] p-3 rounded-lg shadow-sm ${
+                    c.autor?.email === usuarioActual.email ? 'bg-blue-100 text-blue-900' : 'bg-white text-gray-800 border'
+                  }`}>
+                    <p className="text-xs font-bold mb-1 opacity-70">{c.autor?.nombre}</p>
+                    <p>{c.texto}</p>
+                    <p className="text-[10px] text-right mt-1 opacity-50">{formatearFecha(c.fecha)}</p>
+                  </div>
+                </div>
+              ))}
+              
+              {/* ANCLA PARA SCROLL AUTOMÁTICO */}
+              <div ref={mensajesEndRef} />
+            </div>
+
+            <div className="flex gap-2">
+              <input 
+                type="text" 
+                className="flex-1 border p-2 rounded focus:outline-none focus:border-blue-500"
+                placeholder="Escribe una respuesta..."
+                value={nuevoComentario}
+                onChange={(e) => setNuevoComentario(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && enviarComentario()}
+              />
+              <button onClick={enviarComentario} className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition">
+                Enviar
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* COLUMNA DERECHA (HISTORIAL) */}
+        <div className="w-full lg:w-96 flex flex-col gap-6">
+            <div className="bg-white p-6 rounded-lg shadow">
+                <h3 className="font-bold text-gray-700 mb-4">Estado Actual</h3>
+                <div className="space-y-3">
+                    <div className="flex justify-between border-b pb-2">
+                        <span className="text-gray-500">Estado:</span>
+                        <span className="font-bold text-blue-600">{ticket.estado}</span>
+                    </div>
+                    <div className="flex justify-between border-b pb-2">
+                        <span className="text-gray-500">Grupo:</span>
+                        <span className="font-bold text-indigo-600">{ticket.grupoAsignado || "Sin asignar"}</span>
+                    </div>
+                    <div className="flex justify-between border-b pb-2">
+                        <span className="text-gray-500">Técnico:</span>
+                        <span className="font-bold">{ticket.tecnico?.nombre || "Nadie"}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div className="bg-white p-6 rounded-lg shadow flex-1">
+                <h3 className="font-bold text-gray-700 mb-4 flex items-center gap-2">
+                    🕵️‍♂️ Auditoría del Ticket
+                </h3>
+                <div className="relative border-l-2 border-gray-200 ml-3 space-y-6">
+                    {historial.map((h) => (
+                        <div key={h.id} className="relative pl-6">
+                            <div className="absolute -left-[9px] top-0 w-4 h-4 bg-gray-200 rounded-full border-2 border-white"></div>
+                            <div className="flex flex-col">
+                                <span className="text-xs text-gray-400 font-mono mb-1">{formatearFecha(h.fecha)}</span>
+                                <span className="text-sm font-bold text-gray-700">{obtenerIconoAccion(h.accion)} {h.accion}</span>
+                                <p className="text-xs text-gray-500 mt-1 bg-gray-50 p-2 rounded">{h.detalle}</p>
+                                <span className="text-[10px] text-gray-400 mt-1 text-right">Por: {h.actor?.nombre}</span>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </div>
       </div>
     </div>
-  )
+  );
 }
 
-export default DetalleTicket
+export default DetalleTicket;

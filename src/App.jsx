@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react'
 import Login from './components/Login'
-import ClientPortal from './pages/ClientePortal' // <--- Importamos Pagina 1
-import TechPortal from './pages/TechPortal'     // <--- Importamos Pagina 2
+import ClientPortal from './pages/ClientePortal'
+import TechPortal from './pages/TechPortal'
 
 function App() {
   const [usuarioLogueado, setUsuarioLogueado] = useState(null)
 
-  // --- LÓGICA DE LOGIN/LOGOUT (Igual que antes) ---
+  // --- LÓGICA DE LOGIN/LOGOUT ---
   const cerrarSesion = () => {
     setUsuarioLogueado(null)
     localStorage.removeItem('sesionComutel')
@@ -16,7 +16,6 @@ function App() {
     const sesionGuardada = localStorage.getItem('sesionComutel')
     if (sesionGuardada) {
       const datos = JSON.parse(sesionGuardada)
-      // (Aquí va tu lógica de 10 minutos si la quieres mantener)
       setUsuarioLogueado(datos.usuario)
     }
   }, [])
@@ -29,17 +28,17 @@ function App() {
 
   // --- EL TRAFICO ---
 
-  // 1. Si no hay nadie -> LOGIN
+  // 1. Login
   if (!usuarioLogueado) {
     return <Login alIniciarSesion={iniciarSesion} />
   }
 
-  // 2. Si es CLIENTE -> PORTAL USUARIO
+  // 2. Cliente
   if (usuarioLogueado.rol === 'CLIENTE') {
     return <ClientPortal usuario={usuarioLogueado} cerrarSesion={cerrarSesion} />
   }
 
-  // 3. Si es TECNICO o ADMIN -> COMUTEL SERVICE
+  // 3. Técnico (Aquí dentro meteremos los gráficos)
   return <TechPortal usuario={usuarioLogueado} cerrarSesion={cerrarSesion} />
 }
 
