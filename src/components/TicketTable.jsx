@@ -111,7 +111,7 @@ function TicketTable({ alSeleccionar }) { // <--- Recibimos la función del padr
               <th className="py-3 px-4">Asunto / SLA</th>
               <th className="py-3 px-4">Grupo Actual</th>
               <th className="py-3 px-4 text-center">Estado</th>
-              <th className="py-3 px-4">Acciones</th>
+              <th className="py-3 px-4">Acciones</th> {/* Antes decía Acciones Rápidas */}
               <th className="py-3 px-4">Derivar</th>
             </tr>
           </thead>
@@ -162,15 +162,16 @@ function TicketTable({ alSeleccionar }) { // <--- Recibimos la función del padr
                   </td>
 
                   <td className="py-3 px-4">
-                    {ticket.estado === 'NUEVO' && (
-                      <button onClick={(e) => avanzarEstado(e, ticket)} className="text-green-600 hover:underline font-bold bg-white border border-green-200 px-2 py-1 rounded hover:bg-green-50">
+                    {ticket.estado === 'NUEVO' ? (
+                      <button 
+                          onClick={(e) => avanzarEstado(e, ticket)} 
+                          className="text-green-600 hover:underline font-bold bg-white border border-green-200 px-2 py-1 rounded hover:bg-green-50 shadow-sm"
+                      >
                         ▶ Atender
                       </button>
-                    )}
-                    {ticket.estado === 'EN_PROCESO' && (
-                      <button onClick={(e) => avanzarEstado(e, ticket)} className="text-blue-600 hover:underline font-bold bg-white border border-blue-200 px-2 py-1 rounded hover:bg-blue-50">
-                        ✔ Finalizar
-                      </button>
+                    ) : (
+                      // Si ya está en proceso o resuelto, mostramos un texto o icono informativo
+                      <span className="text-gray-400 text-xs italic">Ver detalle para gestionar</span>
                     )}
                   </td>
 

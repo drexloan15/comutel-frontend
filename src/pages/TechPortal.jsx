@@ -5,6 +5,8 @@ import DashboardGraficos from '../components/DashboardGraficos';
 import TicketTable from '../components/TicketTable';
 import DetalleTicket from '../components/DetalleTicket'; 
 import AdminUsers from '../components/AdminUsers';
+import AdminGroups from '../components/AdminGroups';
+import Home from './Home';
 
 // Placeholders para futuras secciones
 const AdminPanel = () => <div className="p-10 text-xl text-center">⚙️ Panel de Configuración (Próximamente)</div>;
@@ -51,12 +53,7 @@ function TechPortal({ usuario, cerrarSesion }) {
                 );
 
             case 'DASHBOARD':
-                return (
-                    <div className="p-6">
-                        <h2 className="text-2xl font-bold mb-4">Business Intelligence</h2>
-                        <DashboardGraficos />
-                    </div>
-                );
+                return <Home />;
 
             case 'TICKETS':
                 return (
@@ -70,11 +67,16 @@ function TechPortal({ usuario, cerrarSesion }) {
                 return <KnowledgeBase />;
 
             case 'ADMIN':
-                // Si es admin, mostramos la gestión de usuarios
-                return (usuario.rol === 'ADMIN' || usuario.rol === 'TECNICO') ?(
-                    <div className="p-6">
+                // Si es admin, mostramos la gestión de usuarios Y grupos
+                return (usuario.rol === 'ADMIN' || usuario.rol === 'TECNICO') ? (
+                    <div className="p-6 space-y-8"> {/* Agregamos space-y-8 para separar */}
+                        
+                        {/* 1. Gestión de Usuarios */}
                         <AdminUsers />
-                        {/* Aquí luego pondremos AdminGroups también */}
+                        
+                        {/* 2. Gestión de Grupos (NUEVO) */}
+                        <AdminGroups />
+                        
                     </div>
                 ) : (
                     <p className="p-6 text-red-500">Acceso Denegado ⛔</p>
