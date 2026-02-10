@@ -1,201 +1,272 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from 'react';
+import { ticketService } from '../services/ticketService';
 
-function TicketTable({ alSeleccionar }) { // <--- Recibimos la función del padre
+function TicketTable({ alSeleccionar, usuarioActual }) {
   const [tickets, setTickets] = useState([]);
-  const [grupos, setGrupos] = useState([]); 
   const [cargando, setCargando] = useState(true);
-  const [filtroEstado, setFiltroEstado] = useState("TODOS");
   
-  // ID simulado (luego vendrá del login real)
-  const USUARIO_ACTUAL_ID = 1; 
+  // Filtros
+  const [busqueda, setBusqueda] = useState("");
+  const [filtroEstado, setFiltroEstado] = useState("TODOS");
+  const [filtroPrioridad, setFiltroPrioridad] = useState("TODAS");
 
   useEffect(() => {
-    cargarDatos();
-
-    // Actualizar la tabla cada 10 segundos
-    const intervalo = setInterval(() => {
-        cargarDatos(true);
-    }, 10000);
-
-    return () => clearInterval(intervalo);
+    cargarTickets();
   }, []);
 
-  const cargarDatos = async (silencioso = false) => {
-    if (!silencioso) setCargando(true);
-
+  const cargarTickets = async () => {
+    setCargando(true);
     try {
-      const resTickets = await fetch("http://localhost:8080/api/tickets");
-      if (resTickets.ok) {
-         const data = await resTickets.json();
-         // Truco: Solo actualizamos si la longitud cambia o si queremos forzar (opcional)
-         setTickets(data);
+      const data = await ticketService.listar();
+      // Ordenar: Los más nuevos primero
+      const ordenados = data.sort((a, b) => new Date(b.fechaCreacion) - new Date(a.fechaCreacion));
+      setTickets(ordenados);
+    } catch (error) { console.error(error); }
+    finally { setCargando(false); }
+  };
+
+  // --- LÓGICA DE FILTRADO ---
+  const ticketsFiltrados = tickets.filter(t => {
+    const coincideTexto = 
+        t.titulo.toLowerCase().includes(busqueda.toLowerCase()) || 
+        t.id.toString().includes(busqueda) ||
+        (t.usuario?.nombre || "").toLowerCase().includes(busqueda.toLowerCase());
+    
+    const coincideEstado = filtroEstado === "TODOS" || t.estado === filtroEstado;
+    const coincidePrioridad = filtroPrioridad === "TODAS" || t.prioridad === filtroPrioridad;
+
+    return coincideTexto && coincideEstado && coincidePrioridad;
+  });
+
+  // --- ACCIÓN: TOMAR CASO (Auto-asignar) ---
+  const autoAsignar = async (e, ticketId) => {
+      e.stopPropagation(); // Evitar que se abra el detalle al hacer click
+      
+      if (!usuarioActual || !usuarioActual.id) {
+          alert("Error: No se ha identificado tu usuario.");
+          return;
       }
 
-      // Los grupos no hace falta cargarlos cada 10 segs, cambian poco.
-      // Solo los cargamos si es la primera vez (!silencioso)
-      if (!silencioso) {
-          const resGrupos = await fetch("http://localhost:8080/api/grupos");
-          if (resGrupos.ok) {
-              setGrupos(await resGrupos.json());
-          }
+      if(!window.confirm("¿Deseas asignarte este ticket y comenzar a trabajarlo?")) return;
+      
+      try {
+          // Llamada al endpoint: /api/tickets/{id}/atender/{tecnicoId}
+          await ticketService.atenderTicket(ticketId, usuarioActual.id); 
+          // Recargamos la lista para ver el cambio (el botón desaparecerá)
+          await cargarTickets(); 
+          alert("✅ Ticket asignado correctamente.");
+      } catch(e) { 
+          console.error(e);
+          alert("Error al asignar el ticket. Revisa la consola."); 
       }
-
-    } catch (error) {
-      console.error("Error cargando datos:", error);
-    } finally {
-      if (!silencioso) setCargando(false);
-    }
   };
 
-  // --- LÓGICA DE NEGOCIO ---
-  const verificarSLA = (fechaVencimiento, estado) => {
-    if (!fechaVencimiento || estado === "RESUELTO" || estado === "CERRADO") return false;
-    return new Date() > new Date(fechaVencimiento);
+  // --- ACCIÓN: EXPORTAR A EXCEL (Formato CSV) ---
+  const exportarExcel = () => {
+      if (ticketsFiltrados.length === 0) return alert("No hay datos para exportar");
+
+      // 1. Cabeceras
+      const headers = ["ID", "Asunto", "Solicitante", "Prioridad", "Estado", "Grupo Asignado", "Tecnico", "Fecha Creacion"];
+      
+      // 2. Datos
+      const rows = ticketsFiltrados.map(t => [
+          t.id,
+          `"${t.titulo.replace(/"/g, '""')}"`, // Escapar comillas para CSV
+          t.usuario?.nombre || "Anonimo",
+          t.prioridad,
+          t.estado,
+          t.grupoAsignado || "Sin Grupo",
+          t.tecnico?.nombre || "Sin Asignar",
+          new Date(t.fechaCreacion).toLocaleDateString()
+      ]);
+
+      // 3. Construir el CSV
+      const csvContent = [
+          headers.join(","), 
+          ...rows.map(row => row.join(","))
+      ].join("\n");
+
+      // 4. Descargar
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `Reporte_Tickets_${new Date().toISOString().slice(0,10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
   };
-
-  const derivarGrupo = async (ticketId, grupoId) => {
-    if (!confirm("¿Seguro que deseas derivar este ticket?")) return;
-    try {
-        // Detener propagación del clic para que no abra el detalle al seleccionar
-        const url = `http://localhost:8080/api/tickets/${ticketId}/asignar-grupo/${grupoId}?actorId=${USUARIO_ACTUAL_ID}`;
-        const response = await fetch(url, { method: "PUT" });
-        if (response.ok) {
-            alert("✅ Ticket derivado exitosamente.");
-            cargarDatos();
-        } else {
-            alert("❌ Error al derivar.");
-        }
-    } catch (error) {
-        console.error(error);
-    }
-  };
-
-  const avanzarEstado = async (e, ticket) => {
-    e.stopPropagation(); // Evita que se abra el detalle al hacer clic en el botón
-    let url = "";
-    if (ticket.estado === "NUEVO") url = `http://localhost:8080/api/tickets/${ticket.id}/atender/${USUARIO_ACTUAL_ID}`;
-    else if (ticket.estado === "EN_PROCESO") url = `http://localhost:8080/api/tickets/${ticket.id}/finalizar`;
-
-    if (url) {
-        await fetch(url, { method: "PUT" });
-        cargarDatos();
-    }
-  };
-
-  const ticketsFiltrados = tickets.filter(t => filtroEstado === "TODOS" ? true : t.estado === filtroEstado);
-
-  if (cargando) return <p className="text-center p-4 text-gray-500">Cargando sistema...</p>;
 
   return (
-    <div className="bg-white p-6 rounded-lg shadow-lg">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-bold text-gray-800">Listado de Tickets</h2>
+    // ELIMINADO 'h-full' y 'overflow-y-auto' para quitar la doble barra de scroll
+    <div className="bg-slate-50 p-8 font-sans min-h-full">
+      
+      {/* 1. ENCABEZADO Y ACCIONES */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4 animate-fade-in">
+        <div>
+            <h1 className="text-2xl font-bold text-slate-800">Gestión de Incidencias</h1>
+            <p className="text-sm text-slate-500">Administra y resuelve los tickets reportados.</p>
+        </div>
+        <button 
+            onClick={exportarExcel}
+            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 shadow-sm transition-all active:scale-95"
+        >
+            <span>📊</span> Exportar Excel (CSV)
+        </button>
+      </div>
+
+      {/* 2. BARRA DE HERRAMIENTAS */}
+      <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-6 flex flex-col md:flex-row gap-4 items-center">
+        <div className="flex-1 w-full relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">🔍</span>
+            <input 
+                type="text" 
+                placeholder="Buscar por ID, Asunto, Usuario..." 
+                className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition"
+                value={busqueda}
+                onChange={e => setBusqueda(e.target.value)}
+            />
+        </div>
         
         <select 
-          className="border p-2 rounded bg-gray-50 text-sm"
-          value={filtroEstado}
-          onChange={(e) => setFiltroEstado(e.target.value)}
+            className="px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 outline-none focus:border-blue-500 bg-white"
+            value={filtroEstado}
+            onChange={e => setFiltroEstado(e.target.value)}
         >
-          <option value="TODOS">Todos los Estados</option>
-          <option value="NUEVO">Nuevos</option>
-          <option value="EN_PROCESO">En Proceso</option>
-          <option value="RESUELTO">Resueltos</option>
+            <option value="TODOS">Todos los Estados</option>
+            <option value="NUEVO">🔵 Nuevos</option>
+            <option value="EN_PROCESO">🟠 En Proceso</option>
+            <option value="RESUELTO">🟢 Resueltos</option>
+            <option value="CERRADO">⚫ Cerrados</option>
+        </select>
+
+        <select 
+            className="px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 outline-none focus:border-blue-500 bg-white"
+            value={filtroPrioridad}
+            onChange={e => setFiltroPrioridad(e.target.value)}
+        >
+            <option value="TODAS">Todas las Prioridades</option>
+            <option value="CRITICA">🔥 Crítica</option>
+            <option value="ALTA">🔴 Alta</option>
+            <option value="MEDIA">🟡 Media</option>
+            <option value="BAJA">🟢 Baja</option>
         </select>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse text-sm">
-          <thead>
-            <tr className="bg-slate-100 text-slate-600 uppercase">
-              <th className="py-3 px-4">ID</th>
-              <th className="py-3 px-4">Asunto / SLA</th>
-              <th className="py-3 px-4">Grupo Actual</th>
-              <th className="py-3 px-4 text-center">Estado</th>
-              <th className="py-3 px-4">Acciones</th> {/* Antes decía Acciones Rápidas */}
-              <th className="py-3 px-4">Derivar</th>
-            </tr>
-          </thead>
-          <tbody className="text-gray-600">
-            {ticketsFiltrados.map((ticket) => {
-              const esVencido = verificarSLA(ticket.fechaVencimiento, ticket.estado);
-
-              return (
-                <tr 
-                    key={ticket.id} 
-                    className="border-b hover:bg-blue-50 transition cursor-pointer group"
-                    onClick={() => alSeleccionar && alSeleccionar(ticket)} // <--- CLIC EN LA FILA ABRE EL TICKET
-                >
-                  <td className="py-3 px-4 font-bold text-blue-600">#{ticket.id}</td>
-                  
-                  <td className="py-3 px-4">
-                    <div className="font-medium text-gray-800 group-hover:text-blue-700">{ticket.titulo}</div>
-                    <div className="text-xs flex items-center gap-2 mt-1">
-                        {esVencido ? (
-                            <span className="text-red-600 font-bold bg-red-100 px-1 rounded">VENCIDO</span>
-                        ) : (
-                            <span className="text-green-600 bg-green-100 px-1 rounded">En tiempo</span>
-                        )}
-                        <span className={`px-2 py-0.5 rounded text-[10px] text-white ${
-                            ticket.prioridad === 'ALTA' ? 'bg-red-500' : 'bg-blue-400'
-                        }`}>{ticket.prioridad}</span>
-                    </div>
-                  </td>
-
-                  <td className="py-3 px-4">
-                    {ticket.grupoAsignado ? (
-                        <span className="bg-indigo-100 text-indigo-700 px-2 py-1 rounded text-xs font-bold">
-                            {ticket.grupoAsignado}
-                        </span>
+      {/* 3. TABLA */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden animate-fade-in-up">
+        <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+                <thead>
+                    <tr className="bg-gray-50 border-b border-gray-100 text-xs font-bold text-gray-500 uppercase tracking-wider">
+                        <th className="p-4">ID</th>
+                        <th className="p-4 w-1/3">Asunto / Solicitante</th>
+                        <th className="p-4">Prioridad</th>
+                        <th className="p-4">Estado</th>
+                        <th className="p-4">Grupo</th> {/* NUEVA COLUMNA */}
+                        <th className="p-4">Asignado a</th>
+                        <th className="p-4 text-center">Fecha</th>
+                        <th className="p-4 text-right">Acción</th>
+                    </tr>
+                </thead>
+                <tbody className="text-sm divide-y divide-gray-50">
+                    {cargando ? (
+                        <tr><td colSpan="8" className="p-8 text-center text-gray-400">Cargando tickets...</td></tr>
+                    ) : ticketsFiltrados.length === 0 ? (
+                        <tr><td colSpan="8" className="p-8 text-center text-gray-400">No se encontraron incidencias.</td></tr>
                     ) : (
-                        <span className="text-gray-400 text-xs italic">Sin asignar</span>
-                    )}
-                  </td>
+                        ticketsFiltrados.map((t) => (
+                            <tr 
+                                key={t.id} 
+                                onClick={() => alSeleccionar(t)}
+                                className="hover:bg-blue-50/50 transition cursor-pointer group"
+                            >
+                                <td className="p-4 font-mono text-gray-400 text-xs">#{t.id}</td>
+                                
+                                <td className="p-4">
+                                    <p className="font-bold text-gray-800 truncate max-w-[250px]">{t.titulo}</p>
+                                    <div className="flex items-center gap-1 mt-1">
+                                        <span className="text-xs text-gray-500">Por:</span>
+                                        <span className="text-xs font-medium text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">
+                                            {t.usuario?.nombre || "Anonimo"}
+                                        </span>
+                                    </div>
+                                </td>
 
-                  <td className="py-3 px-4 text-center">
-                    <span className={`px-2 py-1 rounded text-xs font-bold ${
-                        ticket.estado === 'NUEVO' ? 'bg-green-100 text-green-700' :
-                        ticket.estado === 'EN_PROCESO' ? 'bg-blue-100 text-blue-700' :
-                        'bg-gray-100 text-gray-600'
-                    }`}>
-                      {ticket.estado}
-                    </span>
-                  </td>
+                                <td className="p-4">
+                                    <span className={`px-2 py-1 rounded-full text-[10px] font-bold border ${
+                                        t.prioridad === 'CRITICA' ? 'bg-red-50 text-red-600 border-red-100' :
+                                        t.prioridad === 'ALTA' ? 'bg-orange-50 text-orange-600 border-orange-100' :
+                                        t.prioridad === 'MEDIA' ? 'bg-yellow-50 text-yellow-600 border-yellow-100' :
+                                        'bg-green-50 text-green-600 border-green-100'
+                                    }`}>
+                                        {t.prioridad}
+                                    </span>
+                                </td>
 
-                  <td className="py-3 px-4">
-                    {ticket.estado === 'NUEVO' ? (
-                      <button 
-                          onClick={(e) => avanzarEstado(e, ticket)} 
-                          className="text-green-600 hover:underline font-bold bg-white border border-green-200 px-2 py-1 rounded hover:bg-green-50 shadow-sm"
-                      >
-                        ▶ Atender
-                      </button>
-                    ) : (
-                      // Si ya está en proceso o resuelto, mostramos un texto o icono informativo
-                      <span className="text-gray-400 text-xs italic">Ver detalle para gestionar</span>
-                    )}
-                  </td>
+                                <td className="p-4">
+                                    <span className={`px-2 py-1 rounded text-[10px] font-bold inline-flex items-center gap-1 ${
+                                        t.estado === 'NUEVO' ? 'bg-blue-100 text-blue-700' :
+                                        t.estado === 'RESUELTO' ? 'bg-green-100 text-green-700' :
+                                        t.estado === 'CERRADO' ? 'bg-gray-100 text-gray-600' :
+                                        'bg-purple-100 text-purple-700'
+                                    }`}>
+                                        {t.estado}
+                                    </span>
+                                </td>
 
-                  {/* SELECTOR DE DERIVACIÓN (Con stopPropagation para no abrir el detalle al seleccionar) */}
-                  <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
-                    {ticket.estado !== 'RESUELTO' && ticket.estado !== 'CERRADO' && (
-                        <select 
-                            className="border border-gray-300 rounded text-xs p-1 bg-white hover:border-blue-400 focus:outline-none"
-                            onChange={(e) => derivarGrupo(ticket.id, e.target.value)}
-                            defaultValue=""
-                        >
-                            <option value="" disabled>↪ Derivar...</option>
-                            {Array.isArray(grupos) && grupos.map(g => (
-                                <option key={g.id} value={g.id}>{g.nombre}</option>
-                            ))}
-                        </select>
+                                {/* NUEVA COLUMNA: GRUPO */}
+                                <td className="p-4">
+                                    <span className="text-xs font-semibold text-gray-600 bg-gray-100 px-2 py-1 rounded border border-gray-200">
+                                        {t.grupoAsignado || "Sin Grupo"}
+                                    </span>
+                                </td>
+
+                                <td className="p-4">
+                                    {t.tecnico ? (
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-6 h-6 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center text-[10px] font-bold border border-teal-200">
+                                                {t.tecnico.nombre.charAt(0)}
+                                            </div>
+                                            <span className="text-sm text-gray-600 truncate max-w-[100px]">{t.tecnico.nombre}</span>
+                                        </div>
+                                    ) : (
+                                        <span className="text-xs text-gray-400 italic">-- Sin asignar --</span>
+                                    )}
+                                </td>
+
+                                <td className="p-4 text-center">
+                                    <div className="flex flex-col">
+                                        <span className="text-xs font-bold text-gray-600">{new Date(t.fechaCreacion).toLocaleDateString()}</span>
+                                        <span className="text-[10px] text-gray-400">{new Date(t.fechaCreacion).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                                    </div>
+                                </td>
+
+                                <td className="p-4 text-right">
+                                    {!t.tecnico && t.estado !== 'RESUELTO' && t.estado !== 'CERRADO' ? (
+                                        <button 
+                                            onClick={(e) => autoAsignar(e, t.id)}
+                                            className="text-xs bg-indigo-50 text-indigo-600 border border-indigo-200 px-3 py-1.5 rounded hover:bg-indigo-100 font-bold transition shadow-sm hover:shadow"
+                                        >
+                                            🙋‍♂️ Tomar Caso
+                                        </button>
+                                    ) : (
+                                        <button className="text-gray-400 hover:text-blue-600 transition font-bold text-xl px-2">
+                                            ➝
+                                        </button>
+                                    )}
+                                </td>
+                            </tr>
+                        ))
                     )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        {ticketsFiltrados.length === 0 && <div className="p-4 text-center text-gray-400">No hay tickets.</div>}
+                </tbody>
+            </table>
+        </div>
+        
+        {/* Footer */}
+        <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-between items-center text-xs text-gray-500">
+            <span>Mostrando <strong>{ticketsFiltrados.length}</strong> registros</span>
+        </div>
       </div>
     </div>
   );

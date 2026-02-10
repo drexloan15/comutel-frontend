@@ -1,20 +1,24 @@
 import { useState, useEffect } from 'react';
+import { groupService } from '../services/groupService'; // 👈 IMPORTAMOS EL SERVICIO
 
 function AdminGroups() {
   const [grupos, setGrupos] = useState([]);
   const [nuevoGrupo, setNuevoGrupo] = useState("");
   const [descripcion, setDescripcion] = useState("");
+  const [error, setError] = useState(null); // Para manejar errores visualmente
 
   useEffect(() => {
     cargarGrupos();
   }, []);
 
+  // --- LÓGICA LIMPIA GRACIAS AL SERVICIO ---
   const cargarGrupos = async () => {
     try {
-      const res = await fetch("http://localhost:8080/api/grupos");
-      if (res.ok) setGrupos(await res.json());
-    } catch (error) {
-      console.error("Error cargando grupos");
+      const data = await groupService.listar();
+      setGrupos(data);
+    } catch (err) {
+      setError("No se pudieron cargar los grupos.");
+      console.error(err);
     }
   };
 
@@ -22,26 +26,26 @@ function AdminGroups() {
     e.preventDefault();
     if (!nuevoGrupo.trim()) return;
 
-    const grupo = { nombre: nuevoGrupo, descripcion: descripcion };
-
-    const res = await fetch("http://localhost:8080/api/grupos", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(grupo)
-    });
-
-    if (res.ok) {
+    try {
+      await groupService.crear({ nombre: nuevoGrupo, descripcion });
       setNuevoGrupo("");
       setDescripcion("");
       cargarGrupos(); // Recargar lista
+    } catch (err) {
+      alert("Error al crear el grupo");
     }
   };
 
   const eliminarGrupo = async (id) => {
     if (!confirm("¿Seguro que quieres eliminar este grupo?")) return;
-    await fetch(`http://localhost:8080/api/grupos/${id}`, { method: "DELETE" });
-    cargarGrupos();
+    try {
+      await groupService.eliminar(id);
+      cargarGrupos();
+    } catch (err) {
+      alert("Error al eliminar");
+    }
   };
+  // -----------------------------------------
 
   return (
     <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
@@ -49,9 +53,10 @@ function AdminGroups() {
         🏢 Gestión de Grupos de Resolución
       </h2>
 
+      {error && <div className="text-red-500 mb-4 text-sm">{error}</div>}
+
       <div className="flex gap-8">
-        
-        {/* FORMULARIO DE CREACIÓN */}
+        {/* FORMULARIO (Igual que antes) */}
         <div className="w-1/3 bg-gray-50 p-4 rounded-lg h-fit">
           <h3 className="font-bold text-sm text-gray-500 uppercase mb-3">Nuevo Grupo</h3>
           <form onSubmit={crearGrupo} className="space-y-4">
@@ -80,7 +85,7 @@ function AdminGroups() {
           </form>
         </div>
 
-        {/* LISTA DE GRUPOS */}
+        {/* LISTA (Igual que antes) */}
         <div className="flex-1">
           <table className="w-full text-left border-collapse">
             <thead>
