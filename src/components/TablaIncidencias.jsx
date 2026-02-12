@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
+import { API_BASE_URL } from '../constants/api'
 
-function TablaIncidencias({ usuarioActual, alSeleccionar }) {
+function TablaIncidencias({ alSeleccionar }) {
   const [tickets, setTickets] = useState([])
 
   const cargarTickets = () => {
-    fetch('http://localhost:8080/api/tickets')
+    fetch(`${API_BASE_URL}/tickets`)
       .then(res => res.json())
       .then(data => setTickets(data))
       .catch(err => console.error("Error cargando tickets:", err))

@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { ticketService } from '../services/ticketService';
 import { groupService } from '../services/groupService';
+import { buildApiUrl } from "../constants/api";
 import ContadorSLA from './ContadorSLA'; 
 
 // --- FLECHAS WORKFLOW ---
@@ -200,7 +201,7 @@ function DetalleTicket({ ticket, usuarioActual, alVolver }) {
                                 {comentarios.map((c) => (
                                     <div key={c.id} className={`flex gap-3 w-full ${c.autor?.id === usuarioActual.id ? 'justify-end' : 'justify-start'}`}>
                                         <div className={`p-4 shadow-sm border text-sm break-words w-fit ${c.autor?.id === usuarioActual.id ? 'bg-teal-50 border-teal-100 text-gray-800 rounded-2xl rounded-tr-none' : 'bg-white border-gray-200 text-gray-700 rounded-2xl rounded-tl-none'}`}>
-                                            {c.imagenUrl && <a href={`http://localhost:8080/api/adjuntos/ver/${c.imagenUrl}`} target="_blank"><img src={`http://localhost:8080/api/adjuntos/ver/${c.imagenUrl}`} className="rounded-lg max-h-48 mb-2 border"/></a>}
+                                            {c.imagenUrl && <a href={buildApiUrl(`/adjuntos/ver/${c.imagenUrl}`)} target="_blank"><img src={buildApiUrl(`/adjuntos/ver/${c.imagenUrl}`)} className="rounded-lg max-h-48 mb-2 border"/></a>}
                                             <p>{c.texto}</p>
                                         </div>
                                     </div>
@@ -269,7 +270,7 @@ function DetalleTicket({ ticket, usuarioActual, alVolver }) {
                                             <div className="h-32 bg-gray-100 flex items-center justify-center overflow-hidden relative">
                                                 {esImagen ? (
                                                     <img 
-                                                        src={`http://localhost:8080/api/adjuntos/ver/${a.url}`} 
+                                                        src={buildApiUrl(`/adjuntos/ver/${a.url}`)} 
                                                         alt={a.nombreArchivo} 
                                                         className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                                                     />
@@ -283,7 +284,7 @@ function DetalleTicket({ ticket, usuarioActual, alVolver }) {
                                                 {/* Overlay (Capa oscura al pasar mouse) */}
                                                 <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 backdrop-blur-[2px]">
                                                     <a 
-                                                        href={`http://localhost:8080/api/adjuntos/ver/${a.url}`} 
+                                                        href={buildApiUrl(`/adjuntos/ver/${a.url}`)} 
                                                         target="_blank"
                                                         rel="noreferrer"
                                                         className="bg-white text-gray-800 p-3 rounded-full hover:bg-teal-500 hover:text-white transition shadow-lg transform hover:scale-110 flex items-center justify-center"

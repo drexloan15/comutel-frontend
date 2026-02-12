@@ -48,8 +48,7 @@ export const ticketService = {
   // 👇👇👇 AQUÍ ESTÁ LA FUNCIÓN QUE FALTABA 👇👇👇
   // 5.5. Asignar Técnico (Tomar Caso)
   atenderTicket: async (ticketId, tecnicoId) => {
-    // Asumimos que tu backend tiene este endpoint: PUT /api/tickets/{id}/asignar/{tecnicoId}
-    const response = await fetch(`${API_BASE_URL}/tickets/${ticketId}/asignar/${tecnicoId}`, {
+    const response = await fetch(`${API_BASE_URL}/tickets/${ticketId}/atender/${tecnicoId}`, {
         method: "PUT"
     });
     

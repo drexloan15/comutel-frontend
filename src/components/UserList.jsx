@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
+import { API_BASE_URL } from '../constants/api'
 
 function UserList() {
   const [usuarios, setUsuarios] = useState([])
 
   useEffect(() => {
-    fetch('http://localhost:8080/api/usuarios')
+    fetch(`${API_BASE_URL}/usuarios`)
       .then(response => response.json())
       .then(data => setUsuarios(data))
       .catch(error => console.error('Error usuarios:', error))

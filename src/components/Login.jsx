@@ -16,11 +16,7 @@ function Login({ alIniciarSesion }) {
     const credenciales = { email, password };
 
     try {
-      const url = typeof API_BASE_URL !== 'undefined' 
-                  ? `${API_BASE_URL}/usuarios/login` 
-                  : 'http://localhost:8080/api/usuarios/login';
-
-      const response = await fetch(url, {
+      const response = await fetch(`${API_BASE_URL}/usuarios/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(credenciales)
@@ -34,7 +30,7 @@ function Login({ alIniciarSesion }) {
         alIniciarSesion(usuario, recordar);
       }, 800);
 
-    } catch (err) {
+    } catch {
       setError("Usuario o contraseña incorrectos.");
       setCargando(false);
     }

@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
+import { API_BASE_URL } from '../constants/api'
 
 function DashboardStats() {
   const [metricas, setMetricas] = useState({ total: 0, nuevos: 0, proceso: 0, resueltos: 0 })
 
   const cargarMetricas = () => {
-    fetch('http://localhost:8080/api/tickets/metricas')
+    fetch(`${API_BASE_URL}/tickets/metricas`)
       .then(res => res.json())
       .then(data => setMetricas(data))
       .catch(err => console.error("Error cargando métricas", err))
