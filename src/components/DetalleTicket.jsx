@@ -85,8 +85,14 @@ function DetalleTicket({ ticket, usuarioActual, alVolver }) {
   // --- ACCIONES GENERALES ---
   const handleEscalar = async () => { /* ... igual que antes ... */ 
       if(!grupoEscalar) return alert("Selecciona grupo");
-      await ticketService.asignarGrupo(ticketData.id, grupoEscalar, usuarioActual.id);
-      setModalEscalarOpen(false); cargarDatos();
+      try {
+          await ticketService.asignarGrupo(ticketData.id, grupoEscalar, usuarioActual.id);
+          setGrupoEscalar("");
+          setModalEscalarOpen(false);
+          cargarDatos();
+      } catch (e) {
+          alert("No se pudo escalar el ticket");
+      }
   };
   const handleResolver = async () => { /* ... igual que antes ... */ 
       if(!notaCierre.trim()) return;
@@ -94,9 +100,15 @@ function DetalleTicket({ ticket, usuarioActual, alVolver }) {
       setModalResolverOpen(false); cargarDatos();
   };
   const handleEnviarCorreo = async () => { /* ... igual que antes ... */ 
-       if(!asuntoCorreo) return;
-       await ticketService.enviarCorreoManual(ticketData.id, asuntoCorreo, cuerpoCorreo);
-       setModalCorreoOpen(false);
+       if(!asuntoCorreo.trim()) return alert("Ingresa un asunto");
+       try {
+           await ticketService.enviarCorreoManual(ticketData.id, asuntoCorreo, cuerpoCorreo);
+           setAsuntoCorreo("");
+           setCuerpoCorreo("");
+           setModalCorreoOpen(false);
+       } catch (e) {
+           alert("No se pudo enviar el correo");
+       }
   };
   const handleIniciarChat = async () => { 
       await ticketService.iniciarChat(ticketData.id, usuarioActual.id); alert("Notificado");
@@ -439,6 +451,53 @@ function DetalleTicket({ ticket, usuarioActual, alVolver }) {
         {modalResolverOpen && (
             <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
                 <div className="bg-white p-6 rounded-xl w-96"><h3 className="font-bold mb-2">Resolver</h3><textarea className="w-full border p-2 mb-2" onChange={e=>setNotaCierre(e.target.value)}/><button onClick={handleResolver} className="bg-green-600 text-white px-4 py-2 rounded">Confirmar</button></div>
+            </div>
+        )}
+
+        {modalEscalarOpen && (
+            <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+                <div className="bg-white p-6 rounded-xl w-96">
+                    <h3 className="font-bold mb-4">Escalar Ticket</h3>
+                    <select
+                        className="w-full border p-2 mb-4 rounded"
+                        value={grupoEscalar}
+                        onChange={(e) => setGrupoEscalar(e.target.value)}
+                    >
+                        <option value="">Selecciona un grupo</option>
+                        {grupos.map((g) => (
+                            <option key={g.id} value={g.id}>{g.nombre}</option>
+                        ))}
+                    </select>
+                    <div className="flex justify-end gap-2">
+                        <button onClick={() => setModalEscalarOpen(false)} className="px-4 py-2 border rounded">Cancelar</button>
+                        <button onClick={handleEscalar} className="px-4 py-2 bg-blue-600 text-white rounded">Escalar</button>
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {modalCorreoOpen && (
+            <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+                <div className="bg-white p-6 rounded-xl w-[520px]">
+                    <h3 className="font-bold mb-4">Enviar Correo</h3>
+                    <input
+                        className="w-full border p-2 mb-3 rounded"
+                        placeholder="Asunto"
+                        value={asuntoCorreo}
+                        onChange={(e) => setAsuntoCorreo(e.target.value)}
+                    />
+                    <textarea
+                        className="w-full border p-2 mb-4 rounded"
+                        rows={5}
+                        placeholder="Mensaje"
+                        value={cuerpoCorreo}
+                        onChange={(e) => setCuerpoCorreo(e.target.value)}
+                    />
+                    <div className="flex justify-end gap-2">
+                        <button onClick={() => setModalCorreoOpen(false)} className="px-4 py-2 border rounded">Cancelar</button>
+                        <button onClick={handleEnviarCorreo} className="px-4 py-2 bg-blue-600 text-white rounded">Enviar</button>
+                    </div>
+                </div>
             </div>
         )}
         
