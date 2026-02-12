@@ -1,24 +1,50 @@
-import { API_BASE_URL } from "../constants/api"; // O usa la URL directa si no tienes la constante
+import { API_BASE_URL } from "../constants/api";
 
-const BASE_URL = `${API_BASE_URL}/kb`; // Asegúrate que tu backend sea /api/kb
+const BASE_URL = `${API_BASE_URL}/kb`;
 
 export const kbService = {
-    // Listar todos los artículos
-    listar: async () => {
-        const response = await fetch(BASE_URL);
-        if (!response.ok) throw new Error("Error al cargar artículos");
-        return await response.json();
-    },
+  listar: async () => {
+    const response = await fetch(BASE_URL);
+    if (!response.ok) throw new Error("Error al cargar articulos");
+    return await response.json();
+  },
 
-    // Buscar (Si tu backend tiene endpoint de busqueda, si no filtraremos en frontend)
-    buscar: async (query) => {
-        const response = await fetch(BASE_URL);
-        if (!response.ok) throw new Error("Error al buscar");
-        const data = await response.json();
-        // Filtro simple en cliente si el backend devuelve todo
-        return data.filter(a => 
-            a.titulo.toLowerCase().includes(query.toLowerCase()) || 
-            a.contenido.toLowerCase().includes(query.toLowerCase())
-        );
-    }
+  buscar: async (query) => {
+    const response = await fetch(BASE_URL);
+    if (!response.ok) throw new Error("Error al buscar");
+    const data = await response.json();
+    return data.filter(
+      (a) =>
+        a.titulo.toLowerCase().includes(query.toLowerCase()) ||
+        a.contenido.toLowerCase().includes(query.toLowerCase())
+    );
+  },
+
+  crear: async (payload) => {
+    const response = await fetch(BASE_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) throw new Error("Error al crear articulo");
+    return await response.json();
+  },
+
+  actualizar: async (id, payload) => {
+    const response = await fetch(`${BASE_URL}/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) throw new Error("Error al actualizar articulo");
+    return await response.json();
+  },
+
+  eliminar: async (id) => {
+    const response = await fetch(`${BASE_URL}/${id}`, {
+      method: "DELETE",
+    });
+    if (!response.ok) throw new Error("Error al eliminar articulo");
+    return true;
+  },
 };
