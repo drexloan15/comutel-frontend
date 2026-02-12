@@ -1,284 +1,269 @@
-import { useState, useEffect } from 'react';
-import { kbService } from '../services/kbService';
+import React, { useState, useEffect, useRef } from 'react';
 import { ticketService } from '../services/ticketService';
+import { kbService } from '../services/kbService'; 
 
-function ClientPortal({ usuario, cerrarSesion }) {
-  // --- ESTADOS ---
-  const [vista, setVista] = useState('HOME'); // HOME, NUEVO_TICKET, MIS_TICKETS, LEER_ARTICULO
-  const [articulos, setArticulos] = useState([]);
-  const [busqueda, setBusqueda] = useState("");
-  const [misTickets, setMisTickets] = useState([]);
-  
-  // Estado para formulario de ticket
-  const [nuevoTitulo, setNuevoTitulo] = useState("");
-  const [nuevaDescripcion, setNuevaDescripcion] = useState("");
-  const [articuloSeleccionado, setArticuloSeleccionado] = useState(null);
+// --- UTILIDAD: Limpieza profunda de texto ---
+const stripHtml = (html) => {
+    if (!html) return "";
+    // 1. Reemplazar &nbsp; por espacios normales para permitir saltos de línea
+    let text = html.replace(/&nbsp;/g, ' ');
+    // 2. Extraer solo texto
+    const doc = new DOMParser().parseFromString(text, 'text/html');
+    return doc.body.textContent || "";
+};
 
-  // --- EFECTOS ---
-  useEffect(() => {
-    cargarKB();
-  }, []); // Cargar KB al inicio
+// --- COMPONENTE: CHAT ---
+const ClienteChat = ({ ticket, usuario, onVolver, onEnviarMensaje }) => {
+    const [mensajes, setMensajes] = useState([]);
+    const [nuevoMensaje, setNuevoMensaje] = useState("");
+    const endRef = useRef(null);
+    const [enviando, setEnviando] = useState(false);
 
-  useEffect(() => {
-    if (vista === 'MIS_TICKETS') cargarMisTickets();
-  }, [vista]);
+    useEffect(() => {
+        cargarMensajes();
+        const intervalo = setInterval(cargarMensajes, 3000);
+        return () => clearInterval(intervalo);
+    }, [ticket.id]);
 
-  // --- LÓGICA KB ---
-  const cargarKB = async (query = "") => {
-    try {
-      const data = await kbService.buscar(query);
-      setArticulos(data.slice(0, 6)); // Solo mostramos los top 6
-    } catch (error) {
-      console.error(error);
-    }
-  };
+    useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [mensajes]);
 
-  const buscarEnVivo = (e) => {
-    const val = e.target.value;
-    setBusqueda(val);
-    cargarKB(val);
-  };
+    const cargarMensajes = async () => {
+        try {
+            const data = await ticketService.listarComentarios(ticket.id);
+            setMensajes(data || []);
+        } catch (e) { console.error("Error chat", e); }
+    };
 
-  const verArticulo = (art) => {
-    setArticuloSeleccionado(art);
-    setVista('LEER_ARTICULO');
-  };
+    const enviar = async (e) => {
+        e.preventDefault();
+        if(!nuevoMensaje.trim()) return;
+        setEnviando(true);
+        try {
+            await onEnviarMensaje(ticket.id, nuevoMensaje);
+            setNuevoMensaje("");
+            await cargarMensajes(); 
+        } finally { setEnviando(false); }
+    };
 
-  // --- LÓGICA TICKETS ---
-  const cargarMisTickets = async () => {
-    try {
-      const todos = await ticketService.listar();
-      // Filtramos en frontend (idealmente backend filter)
-      const propios = todos.filter(t => t.usuario?.id === usuario.id);
-      setMisTickets(propios.reverse());
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  const crearTicket = async (e) => {
-    e.preventDefault();
-    if (!nuevoTitulo.trim() || !nuevaDescripcion.trim()) return;
-
-    try {
-      await ticketService.crear({
-        titulo: nuevoTitulo,
-        descripcion: nuevaDescripcion,
-        usuario: { id: usuario.id }, // Asignamos al cliente actual
-        prioridad: 'MEDIA', // Por defecto
-        estado: 'NUEVO'
-      });
-      alert("✅ ¡Ticket creado! Un técnico lo revisará pronto.");
-      setNuevoTitulo("");
-      setNuevaDescripcion("");
-      setVista('MIS_TICKETS');
-    } catch (error) {
-      alert("Error al crear ticket");
-    }
-  };
-
-  // --- COMPONENTES VISUALES ---
-
-  return (
-    <div className="min-h-screen bg-gray-50 font-sans">
-      
-      {/* 1. NAVBAR SUPERIOR */}
-      <nav className="bg-white shadow-sm sticky top-0 z-50">
-        <div className="max-w-6xl mx-auto px-6 py-4 flex justify-between items-center">
-          <div 
-            className="flex items-center gap-2 cursor-pointer"
-            onClick={() => setVista('HOME')}
-          >
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold">C</div>
-            <span className="font-bold text-xl text-gray-800 tracking-tight">Comutel<span className="text-blue-600">Help</span></span>
-          </div>
-          
-          <div className="flex items-center gap-6">
-            <button 
-                onClick={() => setVista('MIS_TICKETS')}
-                className={`text-sm font-medium ${vista === 'MIS_TICKETS' ? 'text-blue-600' : 'text-gray-500 hover:text-gray-900'}`}
-            >
-                Mis Casos
+    return (
+        <div className="max-w-4xl mx-auto mt-8 h-[80vh] flex flex-col animate-fade-in-up px-4 w-full">
+            <button onClick={onVolver} className="mb-4 text-slate-500 hover:text-blue-600 font-bold flex items-center gap-2 text-sm w-fit">
+                ← Volver
             </button>
-            <div className="flex items-center gap-3 pl-6 border-l">
-                <span className="text-sm text-gray-600">Hola, <strong>{usuario.nombre}</strong></span>
-                <button onClick={cerrarSesion} className="text-xs text-red-500 hover:underline">Salir</button>
-            </div>
-          </div>
-        </div>
-      </nav>
 
-      {/* 2. CONTENIDO DINÁMICO */}
-      
-      {/* VISTA: HOME (BUSCADOR + ACCESOS) */}
-      {vista === 'HOME' && (
-        <>
-            {/* HERO SECTION (BUSCADOR) */}
-            <div className="bg-blue-700 pb-20 pt-16 px-6 text-center text-white">
-                <h1 className="text-3xl md:text-4xl font-bold mb-4">¿En qué podemos ayudarte hoy?</h1>
-                <p className="text-blue-100 mb-8 text-lg">Busca soluciones rápidas o contacta con soporte.</p>
-                
-                <div className="max-w-2xl mx-auto relative group">
-                    <input 
-                        type="text" 
-                        className="w-full p-4 pl-12 rounded-full text-gray-800 shadow-xl focus:ring-4 focus:ring-blue-400 outline-none transition"
-                        placeholder="Ej: 'No tengo internet', 'VPN fallando'..."
-                        value={busqueda}
-                        onChange={buscarEnVivo}
-                    />
-                    <span className="absolute left-4 top-4 text-gray-400 text-xl">🔍</span>
-                </div>
-            </div>
-
-            {/* SECCIÓN PRINCIPAL */}
-            <div className="max-w-6xl mx-auto px-6 -mt-10 pb-20">
-                
-                {/* TARJETAS DE ACCIÓN RÁPIDA */}
-                <div className="grid md:grid-cols-2 gap-6 mb-12">
-                    <div 
-                        onClick={() => setVista('NUEVO_TICKET')}
-                        className="bg-white p-8 rounded-xl shadow-lg hover:shadow-xl transition transform hover:-translate-y-1 cursor-pointer border-l-8 border-green-500 flex items-center justify-between"
-                    >
-                        <div>
-                            <h3 className="text-xl font-bold text-gray-800 mb-2">Reportar un Problema</h3>
-                            <p className="text-gray-500">Abre un ticket para que un técnico te asista.</p>
-                        </div>
-                        <span className="text-4xl">🎫</span>
+            <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden flex flex-col flex-1 w-full">
+                <div className="bg-slate-50 border-b border-slate-100 p-4 flex justify-between items-center">
+                    <div className="overflow-hidden">
+                        <span className="text-xs font-mono text-slate-400 block mb-1">TICKET #{ticket.id}</span>
+                        <h2 className="font-bold text-slate-800 text-lg leading-tight truncate">{ticket.titulo}</h2>
                     </div>
-
-                    <div 
-                        onClick={() => setVista('MIS_TICKETS')}
-                        className="bg-white p-8 rounded-xl shadow-lg hover:shadow-xl transition transform hover:-translate-y-1 cursor-pointer border-l-8 border-blue-500 flex items-center justify-between"
-                    >
-                        <div>
-                            <h3 className="text-xl font-bold text-gray-800 mb-2">Ver Estado de mis Tickets</h3>
-                            <p className="text-gray-500">Consulta el progreso de tus casos abiertos.</p>
-                        </div>
-                        <span className="text-4xl">📂</span>
-                    </div>
+                    <span className={`px-3 py-1 rounded-full text-xs font-bold shrink-0 ${ticket.estado === 'RESUELTO' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
+                        {ticket.estado}
+                    </span>
                 </div>
 
-                {/* RESULTADOS DE BASE DE CONOCIMIENTO */}
-                <h2 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
-                    📚 {busqueda ? 'Resultados de búsqueda' : 'Soluciones Recomendadas'}
-                </h2>
-                
-                <div className="grid md:grid-cols-3 gap-6">
-                    {articulos.map(art => (
-                        <div 
-                            key={art.id} 
-                            onClick={() => verArticulo(art)}
-                            className="bg-white p-6 rounded-lg border border-gray-100 shadow-sm hover:shadow-md transition cursor-pointer flex flex-col h-full"
-                        >
-                            <h3 className="font-bold text-blue-700 mb-2">{art.titulo}</h3>
-                            <p className="text-sm text-gray-500 line-clamp-3 flex-1">
-                                {art.contenido.substring(0, 100)}...
-                            </p>
-                            <span className="text-xs text-blue-500 font-bold mt-4 block">Leer artículo →</span>
-                        </div>
-                    ))}
-                    {articulos.length === 0 && (
-                        <div className="col-span-3 text-center py-10 text-gray-400 bg-white rounded-lg border border-dashed">
-                            No encontramos artículos relacionados. Intenta otra búsqueda.
-                        </div>
-                    )}
-                </div>
-            </div>
-        </>
-      )}
-
-      {/* VISTA: NUEVO TICKET */}
-      {vista === 'NUEVO_TICKET' && (
-        <div className="max-w-2xl mx-auto py-10 px-6">
-            <button onClick={() => setVista('HOME')} className="text-gray-500 mb-6 hover:text-blue-600">← Volver al inicio</button>
-            <div className="bg-white p-8 rounded-2xl shadow-xl border border-gray-100">
-                <h2 className="text-2xl font-bold text-gray-800 mb-6">📝 Crear Nuevo Ticket</h2>
-                <form onSubmit={crearTicket} className="space-y-6">
-                    <div>
-                        <label className="block text-sm font-bold text-gray-700 mb-2">Asunto del Problema</label>
-                        <input 
-                            type="text" 
-                            className="w-full border-2 border-gray-200 p-3 rounded-lg focus:border-blue-500 outline-none transition"
-                            placeholder="Ej: Mi computadora no enciende"
-                            value={nuevoTitulo}
-                            onChange={e => setNuevoTitulo(e.target.value)}
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-bold text-gray-700 mb-2">Descripción Detallada</label>
-                        <textarea 
-                            className="w-full border-2 border-gray-200 p-3 rounded-lg h-40 focus:border-blue-500 outline-none transition resize-none"
-                            placeholder="Explica qué pasó, cuándo ocurrió y si ves algún mensaje de error..."
-                            value={nuevaDescripcion}
-                            onChange={e => setNuevaDescripcion(e.target.value)}
-                        />
-                    </div>
-                    <button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-lg shadow-lg transition transform active:scale-95">
-                        Enviar Solicitud
-                    </button>
-                </form>
-            </div>
-        </div>
-      )}
-
-      {/* VISTA: MIS TICKETS */}
-      {vista === 'MIS_TICKETS' && (
-        <div className="max-w-4xl mx-auto py-10 px-6">
-            <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold text-gray-800">📂 Mis Tickets</h2>
-                <button onClick={() => setVista('NUEVO_TICKET')} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-blue-700 text-sm">
-                    + Nuevo
-                </button>
-            </div>
-
-            <div className="bg-white rounded-xl shadow overflow-hidden">
-                {misTickets.length === 0 ? (
-                    <div className="p-10 text-center text-gray-500">No tienes tickets registrados.</div>
-                ) : (
-                    <div className="divide-y divide-gray-100">
-                        {misTickets.map(t => (
-                            <div key={t.id} className="p-6 hover:bg-blue-50 transition flex justify-between items-center group">
-                                <div>
-                                    <div className="flex items-center gap-3 mb-1">
-                                        <span className="text-gray-400 font-mono text-sm">#{t.id}</span>
-                                        <h3 className="font-bold text-gray-800">{t.titulo}</h3>
-                                        {t.estado === 'RESUELTO' && <span className="bg-green-100 text-green-700 text-xs px-2 py-1 rounded font-bold">Resuelto</span>}
-                                        {t.estado === 'NUEVO' && <span className="bg-yellow-100 text-yellow-700 text-xs px-2 py-1 rounded font-bold">En Cola</span>}
-                                        {t.estado === 'EN_PROCESO' && <span className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded font-bold">Atendiendo</span>}
-                                    </div>
-                                    <p className="text-sm text-gray-500">Creado el {new Date(t.fechaCreacion).toLocaleDateString()}</p>
+                <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/30">
+                    {(mensajes || []).map((m) => {
+                        const esMio = m.autor?.id === usuario.id;
+                        return (
+                            <div key={m.id} className={`flex ${esMio ? 'justify-end' : 'justify-start'}`}>
+                                <div className={`max-w-[85%] p-4 rounded-2xl text-sm shadow-sm relative break-words ${esMio ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-white border border-gray-200 text-gray-700 rounded-tl-none'}`}>
+                                    <p className="whitespace-pre-wrap break-words">{m.texto}</p>
+                                    <span className="text-[10px] block mt-2 opacity-70 text-right">
+                                        {new Date(m.fechaCreacion).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
+                                    </span>
                                 </div>
-                                <span className="text-gray-300 group-hover:text-blue-600 text-2xl">→</span>
                             </div>
-                        ))}
-                    </div>
+                        )
+                    })}
+                    <div ref={endRef} />
+                </div>
+
+                {ticket.estado !== 'CERRADO' && (
+                    <form onSubmit={enviar} className="p-4 bg-white border-t border-slate-100 flex gap-3">
+                        <input className="flex-1 bg-slate-100 rounded-full px-5 py-3 outline-none focus:ring-2 focus:ring-blue-500/20 transition w-full" placeholder="Escribe un mensaje..." value={nuevoMensaje} onChange={e => setNuevoMensaje(e.target.value)} />
+                        <button type="submit" disabled={enviando} className="bg-blue-600 text-white w-12 h-12 rounded-full flex items-center justify-center hover:bg-blue-700 shrink-0">➤</button>
+                    </form>
                 )}
             </div>
         </div>
-      )}
+    );
+};
 
-      {/* VISTA: LEER ARTÍCULO (KB) */}
-      {vista === 'LEER_ARTICULO' && articuloSeleccionado && (
-          <div className="max-w-3xl mx-auto py-10 px-6">
-              <button onClick={() => setVista('HOME')} className="text-gray-500 mb-6 hover:text-blue-600">← Volver al buscador</button>
-              <div className="bg-white p-10 rounded-2xl shadow-lg border border-gray-100">
-                  <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider mb-4 inline-block">
-                      Solución KB
-                  </span>
-                  <h1 className="text-3xl font-bold text-gray-900 mb-6">{articuloSeleccionado.titulo}</h1>
-                  <div className="prose prose-blue max-w-none text-gray-700 whitespace-pre-wrap leading-relaxed">
-                      {articuloSeleccionado.contenido}
-                  </div>
-                  <div className="mt-10 pt-6 border-t text-sm text-gray-400 flex justify-between">
-                      <span>Autor: {articuloSeleccionado.autor?.nombre}</span>
-                      <span>¿Te fue útil? 👍 👎</span>
-                  </div>
-              </div>
-          </div>
-      )}
+// --- COMPONENTE PRINCIPAL ---
+function ClientePortal({ usuario, onLogout }) {
+    const [vista, setVista] = useState('HOME'); 
+    const [tickets, setTickets] = useState([]);
+    const [articulos, setArticulos] = useState([]);
+    const [articuloLeido, setArticuloLeido] = useState(null);
+    const [ticketActivo, setTicketActivo] = useState(null);
+    const [busqueda, setBusqueda] = useState("");
+    const [nuevoTicket, setNuevoTicket] = useState({ titulo: "", descripcion: "", prioridad: "MEDIA" });
 
-    </div>
-  );
+    useEffect(() => { cargarDatos(); }, []);
+
+    const cargarDatos = async () => {
+        try {
+            const [dataTickets, dataKb] = await Promise.all([
+                ticketService.listar(),
+                kbService.listar()
+            ]);
+            setTickets(dataTickets.filter(t => t.usuario?.id === usuario.id).sort((a,b) => b.id - a.id));
+            setArticulos(dataKb);
+        } catch (e) { console.error(e); }
+    };
+
+    const handleCrear = async (e) => {
+        e.preventDefault();
+        try {
+            await ticketService.crear({ ...nuevoTicket, usuarioId: usuario.id });
+            alert("✅ Solicitud enviada");
+            setNuevoTicket({ titulo: "", descripcion: "", prioridad: "MEDIA" });
+            setVista('HOME');
+            cargarDatos();
+        } catch (e) { alert("Error al crear ticket"); }
+    };
+
+    const handleEnviarMensajeChat = async (ticketId, texto) => {
+        await ticketService.agregarComentario(ticketId, { texto, autorId: usuario.id });
+    };
+
+    return (
+        <div className="min-h-screen bg-[#F8F9FC] font-sans text-slate-800 overflow-x-hidden">
+            <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
+                <div className="max-w-7xl mx-auto px-4 md:px-6 h-16 flex justify-between items-center">
+                    <div className="flex items-center gap-2 cursor-pointer" onClick={() => setVista('HOME')}>
+                        <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold">C</div>
+                        <span className="font-bold text-lg hidden md:block">Centro de Ayuda</span>
+                    </div>
+                    <div className="flex items-center gap-4">
+                        <div className="hidden md:flex flex-col items-end">
+                            <span className="text-sm font-bold text-slate-700">{usuario.nombre}</span>
+                            <span className="text-[10px] text-slate-400 uppercase">Cliente Corporativo</span>
+                        </div>
+                        
+                        <button onClick={onLogout} className="text-sm text-red-500 font-bold border border-red-100 px-3 py-1 rounded-full hover:bg-red-50 transition">Salir</button>
+                    </div>
+                </div>
+            </header>
+
+            {vista === 'HOME' && (
+                <>
+                    <div className="bg-[#0F172A] py-16 text-center px-4">
+                        <h1 className="text-3xl md:text-4xl font-bold text-white mb-6">¿En qué podemos ayudarte?</h1>
+                        <div className="max-w-2xl mx-auto relative">
+                            <input 
+                                type="text" 
+                                className="w-full py-4 pl-12 pr-4 rounded-xl text-slate-800 shadow-xl outline-none focus:ring-4 focus:ring-blue-500/40 transition"
+                                placeholder="Buscar..."
+                                value={busqueda}
+                                onChange={e => setBusqueda(e.target.value)}
+                            />
+                            <span className="absolute left-4 top-4 text-gray-400 text-xl">🔍</span>
+                        </div>
+                    </div>
+
+                    <main className="max-w-7xl mx-auto px-4 md:px-6 py-10 grid grid-cols-1 lg:grid-cols-12 gap-8">
+                        
+                        {/* COLUMNA KB (8 cols) */}
+                        <div className="lg:col-span-8 space-y-6">
+                            <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">
+                                📚 Artículos Recomendados
+                            </h3>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {articulos.filter(a => a.titulo.toLowerCase().includes(busqueda.toLowerCase())).map(art => (
+                                    <div 
+                                        key={art.id} 
+                                        onClick={() => { setArticuloLeido(art); setVista('LEER'); }}
+                                        className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition cursor-pointer flex flex-col h-full w-full overflow-hidden"
+                                    >
+                                        <div className="mb-3 text-blue-500 bg-blue-50 w-10 h-10 rounded-lg flex items-center justify-center text-xl">📄</div>
+                                        <h4 className="font-bold text-slate-800 mb-2 line-clamp-2">{art.titulo}</h4>
+                                        {/* 👇 AQUÍ ESTÁ LA SOLUCIÓN: break-words y whitespace-normal */}
+                                        <p className="text-sm text-slate-500 line-clamp-3 mb-4 break-words whitespace-normal overflow-hidden">
+                                            {stripHtml(art.contenido)}
+                                        </p>
+                                        <span className="text-xs text-blue-600 font-bold mt-auto">Leer más →</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* COLUMNA SIDEBAR (4 cols) */}
+                        <div className="lg:col-span-4 space-y-6">
+                            <div className="bg-blue-600 rounded-xl p-6 text-white text-center shadow-lg">
+                                <h3 className="font-bold text-lg mb-2">¿Necesitas Ayuda?</h3>
+                                <button onClick={() => setVista('NUEVO')} className="bg-white text-blue-700 w-full py-2.5 rounded-lg font-bold mt-4 hover:bg-blue-50 transition">
+                                    + Crear Ticket
+                                </button>
+                            </div>
+
+                            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                                <div className="p-4 bg-gray-50 border-b border-gray-100 font-bold text-sm text-slate-700">Mis Tickets</div>
+                                <div className="max-h-[400px] overflow-y-auto divide-y divide-gray-50">
+                                    {tickets.map(t => (
+                                        <div key={t.id} className="p-4 hover:bg-slate-50 transition">
+                                            <div className="flex justify-between mb-1">
+                                                <span className="text-xs text-gray-400">#{t.id}</span>
+                                                <span className={`text-[10px] font-bold px-2 rounded ${t.estado==='RESUELTO'?'bg-green-100 text-green-700':'bg-orange-100 text-orange-700'}`}>{t.estado}</span>
+                                            </div>
+                                            <h5 className="font-bold text-sm text-slate-800 truncate mb-2">{t.titulo}</h5>
+                                            {t.estado !== 'CERRADO' && (
+                                                <button onClick={() => { setTicketActivo(t); setVista('CHAT'); }} className="text-xs border border-blue-200 text-blue-600 px-2 py-1 rounded w-full hover:bg-blue-50 font-bold">Abrir Chat</button>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    </main>
+                </>
+            )}
+
+            {/* VISTA LEER ARTÍCULO - CORREGIDA PARA QUE NO SE DESBORDE */}
+            {vista === 'LEER' && articuloLeido && (
+                <div className="max-w-4xl mx-auto py-10 px-4 animate-fade-in-up w-full">
+                    <button onClick={() => setVista('HOME')} className="mb-6 text-slate-500 hover:text-blue-600 font-bold text-sm">← Volver</button>
+                    {/* 👇 w-full y overflow-hidden para evitar scroll horizontal */}
+                    <article className="bg-white p-8 md:p-10 rounded-2xl shadow-lg border border-gray-100 w-full overflow-hidden break-words">
+                        <span className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-xs font-bold uppercase mb-6 inline-block">{articuloLeido.categoria || "General"}</span>
+                        <h1 className="text-2xl md:text-4xl font-bold text-slate-900 mb-6 break-words">{articuloLeido.titulo}</h1>
+                        <div className="flex gap-4 text-sm text-slate-400 border-b border-slate-100 pb-6 mb-6">
+                            <span>Autor: {articuloLeido.autorNombre || "Soporte"}</span>
+                            <span>{new Date(articuloLeido.fechaCreacion).toLocaleDateString()}</span>
+                        </div>
+                        {/* 👇 LA CLAVE: prose, break-words, w-full */}
+                        <div className="prose prose-blue max-w-none w-full break-words whitespace-normal overflow-hidden" 
+                             dangerouslySetInnerHTML={{ __html: articuloLeido.contenido }} />
+                    </article>
+                </div>
+            )}
+
+            {vista === 'NUEVO' && (
+                <div className="max-w-2xl mx-auto py-10 px-4">
+                    <button onClick={() => setVista('HOME')} className="mb-4 text-slate-500 font-bold text-sm">← Volver</button>
+                    <div className="bg-white p-8 rounded-2xl shadow-lg border border-gray-100">
+                        <h2 className="text-2xl font-bold text-slate-800 mb-6">Nuevo Ticket</h2>
+                        <form onSubmit={handleCrear} className="space-y-4">
+                            <input required className="w-full border rounded-lg p-3 outline-none focus:ring-2 focus:ring-blue-500" placeholder="Asunto" value={nuevoTicket.titulo} onChange={e => setNuevoTicket({...nuevoTicket, titulo: e.target.value})} />
+                            <textarea required rows="5" className="w-full border rounded-lg p-3 outline-none focus:ring-2 focus:ring-blue-500" placeholder="Descripción" value={nuevoTicket.descripcion} onChange={e => setNuevoTicket({...nuevoTicket, descripcion: e.target.value})} />
+                            <select className="w-full border rounded-lg p-3" value={nuevoTicket.prioridad} onChange={e => setNuevoTicket({...nuevoTicket, prioridad: e.target.value})}>
+                                <option value="MEDIA">Prioridad Media</option>
+                                <option value="ALTA">Prioridad Alta</option>
+                                <option value="BAJA">Prioridad Baja</option>
+                            </select>
+                            <button type="submit" className="w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700">Enviar</button>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {vista === 'CHAT' && ticketActivo && (
+                <ClienteChat ticket={ticketActivo} usuario={usuario} onVolver={() => setVista('HOME')} onEnviarMensaje={handleEnviarMensajeChat} />
+            )}
+        </div>
+    );
 }
 
-export default ClientPortal;
+export default ClientePortal;

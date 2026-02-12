@@ -215,7 +215,7 @@ function DashboardGraficos({ usuarioActual }) {
         {config.verTablaSLA && (
             <div className="flex-1 bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex flex-col animate-fade-in">
                 <div className="flex justify-between items-center mb-6">
-                    <h3 className="font-bold text-gray-800 text-lg">⚠️ SLA Monitor (Tiempo Real)</h3>
+                    <h3 className="font-bold text-gray-800 text-lg">⚠️ Monitoreo SLA ⚠️</h3>
                     <div className="text-xs text-gray-400">Ordenado por urgencia</div>
                 </div>
                 <div className="overflow-x-auto flex-1">

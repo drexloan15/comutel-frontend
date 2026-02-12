@@ -81,13 +81,15 @@ const Sidebar = ({ seccionActual, setSeccionActual, cerrarSesion, esAdmin }) => 
       <div className="p-4 border-t border-slate-700 shrink-0">
         <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-sm font-bold shadow-lg">
-                U
+                JP
             </div>
             {!colapsado && (
                 <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate text-white">Mi Perfil</p>
+                    <p className="text-sm font-medium truncate text-white">
+                      Mi Perfil
+                    </p>
                     <button onClick={cerrarSesion} className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1 mt-0.5">
-                        <span>🚪</span> Cerrar Sesión
+                        Cerrar Sesión
                     </button>
                 </div>
             )}

@@ -1,28 +1,24 @@
-import { API_BASE_URL } from "../constants/api";
+import { API_BASE_URL } from "../constants/api"; // O usa la URL directa si no tienes la constante
+
+const BASE_URL = `${API_BASE_URL}/kb`; // Asegúrate que tu backend sea /api/kb
 
 export const kbService = {
-  // Buscar (Si query está vacío, trae todo)
-  buscar: async (query = "") => {
-    const url = query 
-        ? `${API_BASE_URL}/kb?query=${query}` 
-        : `${API_BASE_URL}/kb`;
-        
-    const response = await fetch(url);
-    if (!response.ok) throw new Error("Error buscando artículos");
-    return await response.json();
-  },
+    // Listar todos los artículos
+    listar: async () => {
+        const response = await fetch(BASE_URL);
+        if (!response.ok) throw new Error("Error al cargar artículos");
+        return await response.json();
+    },
 
-  crear: async (articulo) => {
-    const response = await fetch(`${API_BASE_URL}/kb`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(articulo),
-    });
-    if (!response.ok) throw new Error("Error creando artículo");
-    return await response.json();
-  },
-  
-  eliminar: async (id) => {
-      await fetch(`${API_BASE_URL}/kb/${id}`, { method: "DELETE" });
-  }
+    // Buscar (Si tu backend tiene endpoint de busqueda, si no filtraremos en frontend)
+    buscar: async (query) => {
+        const response = await fetch(BASE_URL);
+        if (!response.ok) throw new Error("Error al buscar");
+        const data = await response.json();
+        // Filtro simple en cliente si el backend devuelve todo
+        return data.filter(a => 
+            a.titulo.toLowerCase().includes(query.toLowerCase()) || 
+            a.contenido.toLowerCase().includes(query.toLowerCase())
+        );
+    }
 };
