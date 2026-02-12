@@ -91,7 +91,7 @@ const ClienteChat = ({ ticket, usuario, onVolver, onEnviarMensaje }) => {
 };
 
 // --- COMPONENTE PRINCIPAL ---
-function ClientePortal({ usuario, onLogout }) {
+function ClientePortal({ usuario, cerrarSesion }) {
     const [vista, setVista] = useState('HOME'); 
     const [tickets, setTickets] = useState([]);
     const [articulos, setArticulos] = useState([]);
@@ -99,6 +99,9 @@ function ClientePortal({ usuario, onLogout }) {
     const [ticketActivo, setTicketActivo] = useState(null);
     const [busqueda, setBusqueda] = useState("");
     const [nuevoTicket, setNuevoTicket] = useState({ titulo: "", descripcion: "", prioridad: "MEDIA" });
+    const articulosFiltrados = articulos.filter((a) =>
+        a.titulo.toLowerCase().includes(busqueda.toLowerCase())
+    );
 
     useEffect(() => { cargarDatos(); }, []);
 
@@ -142,7 +145,7 @@ function ClientePortal({ usuario, onLogout }) {
                             <span className="text-[10px] text-slate-400 uppercase">Cliente Corporativo</span>
                         </div>
                         
-                        <button onClick={onLogout} className="text-sm text-red-500 font-bold border border-red-100 px-3 py-1 rounded-full hover:bg-red-50 transition">Salir</button>
+                        <button onClick={cerrarSesion} className="text-sm text-red-500 font-bold border border-red-100 px-3 py-1 rounded-full hover:bg-red-50 transition">Salir</button>
                     </div>
                 </div>
             </header>
@@ -165,29 +168,61 @@ function ClientePortal({ usuario, onLogout }) {
 
                     <main className="max-w-7xl mx-auto px-4 md:px-6 py-10 grid grid-cols-1 lg:grid-cols-12 gap-8">
                         
-                        {/* COLUMNA KB (8 cols) */}
+                                                {/* COLUMNA KB (8 cols) */}
                         <div className="lg:col-span-8 space-y-6">
-                            <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">
-                                📚 Artículos Recomendados
-                            </h3>
-                            
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {articulos.filter(a => a.titulo.toLowerCase().includes(busqueda.toLowerCase())).map(art => (
-                                    <div 
-                                        key={art.id} 
-                                        onClick={() => { setArticuloLeido(art); setVista('LEER'); }}
-                                        className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition cursor-pointer flex flex-col h-full w-full overflow-hidden"
-                                    >
-                                        <div className="mb-3 text-blue-500 bg-blue-50 w-10 h-10 rounded-lg flex items-center justify-center text-xl">📄</div>
-                                        <h4 className="font-bold text-slate-800 mb-2 line-clamp-2">{art.titulo}</h4>
-                                        {/* 👇 AQUÍ ESTÁ LA SOLUCIÓN: break-words y whitespace-normal */}
-                                        <p className="text-sm text-slate-500 line-clamp-3 mb-4 break-words whitespace-normal overflow-hidden">
-                                            {stripHtml(art.contenido)}
-                                        </p>
-                                        <span className="text-xs text-blue-600 font-bold mt-auto">Leer más →</span>
-                                    </div>
-                                ))}
+                            <div className="flex items-center justify-between gap-4">
+                                <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">
+                                    <span className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center">KB</span>
+                                    Articulos Recomendados
+                                </h3>
+                                <span className="text-xs font-bold text-slate-500 bg-white border border-slate-200 px-3 py-1 rounded-full">
+                                    {articulosFiltrados.length} resultado(s)
+                                </span>
                             </div>
+
+                            {articulosFiltrados.length === 0 ? (
+                                <div className="bg-white border border-dashed border-slate-300 rounded-2xl p-10 text-center shadow-sm">
+                                    <p className="text-slate-700 font-bold mb-1">No encontramos articulos para esta busqueda</p>
+                                    <p className="text-sm text-slate-500">Prueba con otra palabra clave o crea un ticket.</p>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    {articulosFiltrados.map((art) => (
+                                        <article
+                                            key={art.id}
+                                            onClick={() => { setArticuloLeido(art); setVista('LEER'); }}
+                                            className="group relative bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer overflow-hidden"
+                                        >
+                                            <div className="h-1.5 bg-gradient-to-r from-blue-600 via-cyan-500 to-emerald-400" />
+
+                                            <div className="p-6 flex flex-col h-full min-h-[230px]">
+                                                <div className="flex items-center justify-between mb-4">
+                                                    <span className="text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full">
+                                                        {art.categoria || "General"}
+                                                    </span>
+                                                    <span className="text-[11px] text-slate-400">
+                                                        {art.fechaCreacion ? new Date(art.fechaCreacion).toLocaleDateString() : ""}
+                                                    </span>
+                                                </div>
+
+                                                <h4 className="font-extrabold text-slate-800 mb-2 line-clamp-2 group-hover:text-blue-700 transition-colors">
+                                                    {art.titulo}
+                                                </h4>
+                                                <p className="text-sm text-slate-500 line-clamp-4 mb-5 break-words whitespace-normal overflow-hidden">
+                                                    {stripHtml(art.contenido)}
+                                                </p>
+
+                                                <div className="mt-auto flex items-center justify-between">
+                                                    <span className="text-xs text-slate-400">Base de conocimiento</span>
+                                                    <span className="text-sm font-bold text-blue-600 group-hover:text-blue-700">
+                                                        Leer articulo
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </article>
+                                    ))}
+                                </div>
+                            )}
                         </div>
 
                         {/* COLUMNA SIDEBAR (4 cols) */}
@@ -221,21 +256,40 @@ function ClientePortal({ usuario, onLogout }) {
                 </>
             )}
 
-            {/* VISTA LEER ARTÍCULO - CORREGIDA PARA QUE NO SE DESBORDE */}
+            {/* VISTA LEER ARTÍCULO */}
             {vista === 'LEER' && articuloLeido && (
-                <div className="max-w-4xl mx-auto py-10 px-4 animate-fade-in-up w-full">
-                    <button onClick={() => setVista('HOME')} className="mb-6 text-slate-500 hover:text-blue-600 font-bold text-sm">← Volver</button>
-                    {/* 👇 w-full y overflow-hidden para evitar scroll horizontal */}
-                    <article className="bg-white p-8 md:p-10 rounded-2xl shadow-lg border border-gray-100 w-full overflow-hidden break-words">
-                        <span className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-xs font-bold uppercase mb-6 inline-block">{articuloLeido.categoria || "General"}</span>
-                        <h1 className="text-2xl md:text-4xl font-bold text-slate-900 mb-6 break-words">{articuloLeido.titulo}</h1>
-                        <div className="flex gap-4 text-sm text-slate-400 border-b border-slate-100 pb-6 mb-6">
-                            <span>Autor: {articuloLeido.autorNombre || "Soporte"}</span>
-                            <span>{new Date(articuloLeido.fechaCreacion).toLocaleDateString()}</span>
+                <div className="max-w-5xl mx-auto py-10 px-4 animate-fade-in-up w-full">
+                    <button
+                        onClick={() => setVista('HOME')}
+                        className="mb-6 text-slate-500 hover:text-blue-600 font-bold text-sm"
+                    >
+                        Volver
+                    </button>
+
+                    <article className="bg-white rounded-3xl shadow-xl border border-slate-200 w-full overflow-hidden">
+                        <div className="bg-gradient-to-r from-slate-900 via-blue-900 to-cyan-800 px-7 py-8 md:px-10 md:py-10 text-white">
+                            <span className="bg-white/15 text-white px-3 py-1 rounded-full text-xs font-bold uppercase inline-block mb-5">
+                                {articuloLeido.categoria || "General"}
+                            </span>
+                            <h1 className="text-2xl md:text-4xl font-extrabold leading-tight break-words">
+                                {articuloLeido.titulo}
+                            </h1>
+                            <div className="mt-6 flex flex-wrap gap-3 text-xs md:text-sm">
+                                <span className="px-3 py-1 rounded-full bg-white/10 border border-white/20">
+                                    Autor: {articuloLeido.autorNombre || "Soporte"}
+                                </span>
+                                <span className="px-3 py-1 rounded-full bg-white/10 border border-white/20">
+                                    {new Date(articuloLeido.fechaCreacion).toLocaleDateString()}
+                                </span>
+                            </div>
                         </div>
-                        {/* 👇 LA CLAVE: prose, break-words, w-full */}
-                        <div className="prose prose-blue max-w-none w-full break-words whitespace-normal overflow-hidden" 
-                             dangerouslySetInnerHTML={{ __html: articuloLeido.contenido }} />
+
+                        <div className="px-7 py-8 md:px-10 md:py-10">
+                            <div
+                                className="prose prose-slate prose-headings:text-slate-900 prose-a:text-blue-700 max-w-none w-full break-words whitespace-normal overflow-hidden leading-7 md:leading-8"
+                                dangerouslySetInnerHTML={{ __html: articuloLeido.contenido }}
+                            />
+                        </div>
                     </article>
                 </div>
             )}
@@ -267,3 +321,4 @@ function ClientePortal({ usuario, onLogout }) {
 }
 
 export default ClientePortal;
+

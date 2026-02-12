@@ -104,11 +104,12 @@ export const ticketService = {
   },
 
   enviarCorreoManual: async (ticketId, asunto, mensaje) => {
-    await fetch(`${API_BASE_URL}/tickets/${ticketId}/enviar-correo`, {
+    const res = await fetch(`${API_BASE_URL}/tickets/${ticketId}/enviar-correo`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ asunto, mensaje })
     });
+    if (!res.ok) throw new Error("Error enviando correo manual");
   },
 
   // 9. Activos

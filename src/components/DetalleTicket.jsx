@@ -85,21 +85,51 @@ function DetalleTicket({ ticket, usuarioActual, alVolver }) {
   // --- ACCIONES GENERALES ---
   const handleEscalar = async () => { /* ... igual que antes ... */ 
       if(!grupoEscalar) return alert("Selecciona grupo");
-      await ticketService.asignarGrupo(ticketData.id, grupoEscalar, usuarioActual.id);
-      setModalEscalarOpen(false); cargarDatos();
+      try {
+        await ticketService.asignarGrupo(ticketData.id, grupoEscalar, usuarioActual.id);
+        setModalEscalarOpen(false);
+        setGrupoEscalar("");
+        cargarDatos();
+        alert("Ticket escalado correctamente.");
+      } catch (e) {
+        console.error(e);
+        alert("No se pudo escalar el ticket.");
+      }
   };
   const handleResolver = async () => { /* ... igual que antes ... */ 
       if(!notaCierre.trim()) return;
-      await ticketService.resolver(ticketData.id, notaCierre);
-      setModalResolverOpen(false); cargarDatos();
+      try {
+        await ticketService.resolver(ticketData.id, notaCierre);
+        setModalResolverOpen(false);
+        setNotaCierre("");
+        cargarDatos();
+        alert("Ticket resuelto correctamente.");
+      } catch (e) {
+        console.error(e);
+        alert("No se pudo resolver el ticket.");
+      }
   };
   const handleEnviarCorreo = async () => { /* ... igual que antes ... */ 
        if(!asuntoCorreo) return;
-       await ticketService.enviarCorreoManual(ticketData.id, asuntoCorreo, cuerpoCorreo);
-       setModalCorreoOpen(false);
+       try {
+         await ticketService.enviarCorreoManual(ticketData.id, asuntoCorreo, cuerpoCorreo);
+         setModalCorreoOpen(false);
+         setAsuntoCorreo("");
+         setCuerpoCorreo("");
+         alert("Correo enviado correctamente.");
+       } catch (e) {
+         console.error(e);
+         alert("No se pudo enviar el correo.");
+       }
   };
   const handleIniciarChat = async () => { 
-      await ticketService.iniciarChat(ticketData.id, usuarioActual.id); alert("Notificado");
+      try {
+        await ticketService.iniciarChat(ticketData.id, usuarioActual.id);
+        alert("Notificado");
+      } catch (e) {
+        console.error(e);
+        alert("No se pudo iniciar chat.");
+      }
   };
 
   // --- LÓGICA ACTIVOS ---
@@ -436,6 +466,55 @@ function DetalleTicket({ ticket, usuarioActual, alVolver }) {
           </div>
 
         {/* --- MODALES --- */}
+        {modalEscalarOpen && (
+            <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+                <div className="bg-white p-6 rounded-xl w-96">
+                    <h3 className="font-bold mb-3">Escalar Ticket</h3>
+                    <p className="text-sm text-gray-500 mb-3">Selecciona el grupo al que se derivara el caso.</p>
+                    <select
+                        className="w-full border border-gray-200 rounded p-2 mb-4"
+                        value={grupoEscalar}
+                        onChange={(e) => setGrupoEscalar(e.target.value)}
+                    >
+                        <option value="">Selecciona un grupo</option>
+                        {grupos.map((g) => (
+                            <option key={g.id} value={g.id}>
+                                {g.nombre}
+                            </option>
+                        ))}
+                    </select>
+                    <div className="flex justify-end gap-2">
+                        <button onClick={() => setModalEscalarOpen(false)} className="px-4 py-2 text-gray-500">Cancelar</button>
+                        <button onClick={handleEscalar} className="bg-blue-600 text-white px-4 py-2 rounded">Confirmar</button>
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {modalCorreoOpen && (
+            <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+                <div className="bg-white p-6 rounded-xl w-[480px] max-w-[95vw]">
+                    <h3 className="font-bold mb-3">Enviar Correo Manual</h3>
+                    <input
+                        className="w-full border border-gray-200 rounded p-2 mb-3"
+                        placeholder="Asunto"
+                        value={asuntoCorreo}
+                        onChange={(e) => setAsuntoCorreo(e.target.value)}
+                    />
+                    <textarea
+                        className="w-full border border-gray-200 rounded p-2 mb-4 min-h-32"
+                        placeholder="Mensaje"
+                        value={cuerpoCorreo}
+                        onChange={(e) => setCuerpoCorreo(e.target.value)}
+                    />
+                    <div className="flex justify-end gap-2">
+                        <button onClick={() => setModalCorreoOpen(false)} className="px-4 py-2 text-gray-500">Cancelar</button>
+                        <button onClick={handleEnviarCorreo} className="bg-blue-600 text-white px-4 py-2 rounded">Enviar</button>
+                    </div>
+                </div>
+            </div>
+        )}
+
         {modalResolverOpen && (
             <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
                 <div className="bg-white p-6 rounded-xl w-96"><h3 className="font-bold mb-2">Resolver</h3><textarea className="w-full border p-2 mb-2" onChange={e=>setNotaCierre(e.target.value)}/><button onClick={handleResolver} className="bg-green-600 text-white px-4 py-2 rounded">Confirmar</button></div>
