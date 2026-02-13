@@ -69,5 +69,35 @@ export const userService = {
     }
 
     return await legacyResponse.json();
+  },
+
+  // 5. Actualizar rol de usuario
+  actualizarRol: async (id, rol) => {
+    const response = await fetch(`${API_BASE_URL}/usuarios/${id}/rol`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rol }),
+    });
+
+    if (!response.ok) {
+      const errorMsg = await response.text();
+      throw new Error(errorMsg || "Error al actualizar rol");
+    }
+    return await response.json();
+  },
+
+  // 6. Asignar grupos por usuario
+  asignarGrupos: async (id, grupoIds = []) => {
+    const response = await fetch(`${API_BASE_URL}/usuarios/${id}/grupos`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ grupoIds }),
+    });
+
+    if (!response.ok) {
+      const errorMsg = await response.text();
+      throw new Error(errorMsg || "Error al asignar grupos");
+    }
+    return await response.json();
   }
 };

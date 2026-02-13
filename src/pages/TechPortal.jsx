@@ -16,12 +16,11 @@ function TechPortal({
     usuario,
     cerrarSesion,
     puedeVerAdmin,
-    esSuperAdmin,
     puedeGestionarRoles,
+    esSuperAdmin,
     modoVista,
     onAlternarVista,
-    permissionsConfig,
-    onChangePermissionsConfig,
+    onUsuarioActualizado,
 }) {
     // Estado inicial
     const [vista, setVista] = useState('PANEL'); 
@@ -86,8 +85,8 @@ function TechPortal({
             case 'ROLES':
                 return puedeVerRolesPermisos ? (
                     <RolesPermisos
-                        config={permissionsConfig}
-                        onChangeConfig={onChangePermissionsConfig}
+                        usuarioActual={usuario}
+                        onUsuarioActualizado={onUsuarioActualizado}
                         puedeGestionarTesterAdmin={esSuperAdmin}
                     />
                 ) : <DashboardGraficos usuarioActual={usuario} />;

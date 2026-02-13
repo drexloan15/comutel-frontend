@@ -106,8 +106,6 @@ function DetalleTicket({ ticket, usuarioActual, alVolver }) {
       }
   };
 
-  const normalizarRol = (rol) => String(rol || "").trim().toUpperCase();
-
   const cargarTecnicosPorGrupo = async (grupoId) => {
       if (!grupoId) {
           setTecnicosDisponibles([]);
@@ -115,31 +113,9 @@ function DetalleTicket({ ticket, usuarioActual, alVolver }) {
           return;
       }
       try {
-          let data = [];
-
           const porGrupoRes = await fetch(`${API_BASE_URL}/usuarios/tecnicos?grupoId=${grupoId}`);
-          if (porGrupoRes.ok) {
-              data = await porGrupoRes.json();
-          }
-
-          // Fallback: si no hay técnicos asignados al grupo o la ruta no responde,
-          // intentamos traer todos los técnicos.
-          if (!Array.isArray(data) || data.length === 0) {
-              const tecnicosRes = await fetch(`${API_BASE_URL}/usuarios/tecnicos`);
-              if (tecnicosRes.ok) {
-                  data = await tecnicosRes.json();
-              }
-          }
-
-          // Último fallback: filtrar desde /usuarios para compatibilidad.
-          if (!Array.isArray(data) || data.length === 0) {
-              const usuariosRes = await fetch(`${API_BASE_URL}/usuarios`);
-              if (usuariosRes.ok) {
-                  const usuarios = await usuariosRes.json();
-                  data = (usuarios || []).filter((u) => normalizarRol(u.rol) === "TECNICO");
-              }
-          }
-
+          if (!porGrupoRes.ok) throw new Error("No se pudo cargar tecnicos del grupo");
+          const data = await porGrupoRes.json();
           setTecnicosDisponibles(Array.isArray(data) ? data : []);
           setTecnicoEscalar("");
       } catch (error) {
