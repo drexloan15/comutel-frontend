@@ -1,16 +1,35 @@
 import { API_BASE_URL } from "../constants/api";
 
+const obtenerUsuarioSesion = () => {
+  try {
+    const sesion = localStorage.getItem("sesionComutel");
+    if (!sesion) return null;
+    const datos = JSON.parse(sesion);
+    return datos?.usuario ?? null;
+  } catch {
+    return null;
+  }
+};
+
+const agregarUsuarioId = (url) => {
+  const usuario = obtenerUsuarioSesion();
+  if (!usuario?.id) return url;
+
+  const separador = url.includes("?") ? "&" : "?";
+  return `${url}${separador}usuarioId=${usuario.id}`;
+};
+
 export const ticketService = {
   // 1. Listar todos
   listar: async () => {
-    const response = await fetch(`${API_BASE_URL}/tickets`);
+    const response = await fetch(agregarUsuarioId(`${API_BASE_URL}/tickets`));
     if (!response.ok) throw new Error("Error cargando tickets");
     return await response.json();
   },
 
   // 2. Obtener uno por ID (Detalle)
   obtenerPorId: async (id) => {
-    const response = await fetch(`${API_BASE_URL}/tickets/${id}`);
+    const response = await fetch(agregarUsuarioId(`${API_BASE_URL}/tickets/${id}`));
     if (!response.ok) throw new Error("Error cargando el ticket");
     return await response.json();
   },
