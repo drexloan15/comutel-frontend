@@ -1,65 +1,85 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { API_BASE_URL } from "../constants/api";
+import { userService } from "../services/userService";
 
 function Login({ alIniciarSesion }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [recordar, setRecordar] = useState(false);
   const [cargando, setCargando] = useState(false);
+  const [reparandoAdmin, setReparandoAdmin] = useState(false);
   const [error, setError] = useState(null);
+
+  const loginConCredenciales = async () => {
+    const credenciales = { email, password };
+    const response = await fetch(`${API_BASE_URL}/usuarios/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(credenciales)
+    });
+
+    if (!response.ok) throw new Error('Credenciales incorrectas');
+    return await response.json();
+  };
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setError(null);
     setCargando(true);
 
-    const credenciales = { email, password };
-
     try {
-      const response = await fetch(`${API_BASE_URL}/usuarios/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(credenciales)
-      });
-
-      if (!response.ok) throw new Error('Credenciales incorrectas');
-
-      const usuario = await response.json();
-      
+      const usuario = await loginConCredenciales();
       setTimeout(() => {
         alIniciarSesion(usuario, recordar);
       }, 800);
-
     } catch {
       setError("Usuario o contraseña incorrectos.");
       setCargando(false);
     }
   };
 
+  const handleRepararAdmin = async () => {
+    if (!email.trim() || !password.trim()) {
+      setError("Ingresa usuario/email y contraseña para reparar admin.");
+      return;
+    }
+
+    setError(null);
+    setReparandoAdmin(true);
+    setCargando(true);
+
+    try {
+      await userService.repararAdmin(email, password);
+      const usuario = await loginConCredenciales();
+      alIniciarSesion(usuario, recordar);
+    } catch {
+      setError("No se pudo reparar el admin. Verifica permisos del backend.");
+    } finally {
+      setReparandoAdmin(false);
+      setCargando(false);
+    }
+  };
+
   return (
     <div className="flex min-h-screen w-full bg-white font-sans overflow-hidden">
-      
       {/* 1. SECCIÓN IZQUIERDA (IMAGEN + BRANDING) - OCUPA 2/3 (66%) */}
-      <div 
+      <div
         className="hidden lg:flex lg:w-2/3 relative flex-col justify-between p-16 text-white bg-cover bg-center"
         style={{
-            // 👇 Aquí puedes cambiar la URL por una imagen local o de internet
-            backgroundImage: "url('https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=2072&auto=format&fit=crop')"
+          backgroundImage: "url('https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=2072&auto=format&fit=crop')"
         }}
       >
-        {/* Capa oscura superpuesta (Overlay) para que se lea el texto */}
         <div className="absolute inset-0 bg-gradient-to-r from-slate-900/90 to-blue-900/80 backdrop-blur-[1px]"></div>
 
-        {/* Contenido Branding */}
         <div className="relative z-10 animate-fade-in-up">
           <div className="flex items-center gap-3 mb-8">
             <div className="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center font-bold text-2xl shadow-lg shadow-blue-500/40">C</div>
             <span className="font-bold text-xl tracking-widest uppercase text-blue-100">Comutel Service</span>
           </div>
-          
+
           <div className="max-w-2xl">
             <h1 className="text-6xl font-bold leading-tight mb-6 text-white">
-              Gestión inteligente <br/> 
+              Gestión inteligente <br />
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-teal-400">
                 para soporte TI.
               </span>
@@ -70,23 +90,20 @@ function Login({ alIniciarSesion }) {
           </div>
         </div>
 
-        {/* Footer Branding */}
         <div className="relative z-10 flex gap-6 text-sm text-blue-200/60 font-medium">
-            <span>&copy; 2026 Comutel Perú</span>
-            <span>•</span>
-            <span>Política de Privacidad</span>
-            <span>•</span>
-            <span>Soporte</span>
+          <span>&copy; 2026 Comutel Perú</span>
+          <span>•</span>
+          <span>Política de Privacidad</span>
+          <span>•</span>
+          <span>Soporte</span>
         </div>
       </div>
 
       {/* 2. SECCIÓN DERECHA (FORMULARIO) - OCUPA 1/3 (33%) */}
       <div className="w-full lg:w-1/3 flex items-center justify-center p-8 lg:p-12 bg-white shadow-2xl z-20">
         <div className="w-full max-w-sm space-y-8">
-          
-          {/* Logo móvil */}
           <div className="lg:hidden text-center mb-8">
-             <div className="w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-white text-2xl mx-auto mb-2">C</div>
+            <div className="w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-white text-2xl mx-auto mb-2">C</div>
           </div>
 
           <div>
@@ -96,14 +113,13 @@ function Login({ alIniciarSesion }) {
 
           {error && (
             <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded text-sm flex gap-3 items-center animate-pulse">
-                <span>⚠️</span>
-                <span className="text-red-600 font-semibold">{error}</span>
+              <span>⚠️</span>
+              <span className="text-red-600 font-semibold">{error}</span>
             </div>
           )}
 
           <form className="mt-8 space-y-6" onSubmit={handleLogin}>
             <div className="space-y-5">
-              
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Correo o Usuario</label>
                 <div className="relative group">
@@ -161,7 +177,7 @@ function Login({ alIniciarSesion }) {
             <button
               type="submit"
               disabled={cargando}
-              className={`w-full flex justify-center py-3.5 px-4 border border-transparent rounded-xl shadow-lg text-sm font-bold text-white transition-all duration-200 
+              className={`w-full flex justify-center py-3.5 px-4 border border-transparent rounded-xl shadow-lg text-sm font-bold text-white transition-all duration-200
                 ${cargando ? 'bg-blue-400 cursor-not-allowed' : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 hover:shadow-blue-500/30 transform hover:-translate-y-0.5'}`}
             >
               {cargando ? (
@@ -174,12 +190,23 @@ function Login({ alIniciarSesion }) {
                 </div>
               ) : "Ingresar al Portal"}
             </button>
+
+            {error && (
+              <button
+                type="button"
+                onClick={handleRepararAdmin}
+                disabled={reparandoAdmin || cargando}
+                className="w-full border border-slate-200 text-slate-700 font-semibold py-2.5 rounded-xl hover:bg-slate-50 transition disabled:opacity-60"
+              >
+                {reparandoAdmin ? "Reparando administrador..." : "Reparar acceso admin"}
+              </button>
+            )}
           </form>
-          
+
           <div className="mt-6 border-t border-slate-100 pt-6">
-             <p className="text-center text-xs text-slate-400">
-                ¿Problemas de acceso? <a href="#" className="text-blue-500 font-bold hover:underline">Contacta a soporte TI</a>
-             </p>
+            <p className="text-center text-xs text-slate-400">
+              ¿Problemas de acceso? <a href="#" className="text-blue-500 font-bold hover:underline">Contacta a soporte TI</a>
+            </p>
           </div>
         </div>
       </div>
