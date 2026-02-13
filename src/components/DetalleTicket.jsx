@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { ticketService } from '../services/ticketService';
 import { groupService } from '../services/groupService';
-import { buildApiUrl } from "../constants/api";
+import { API_BASE_URL, buildApiUrl } from "../constants/api";
 import ContadorSLA from './ContadorSLA'; 
 
 // --- FLECHAS WORKFLOW ---
@@ -46,6 +46,8 @@ function DetalleTicket({ ticket, usuarioActual, alVolver }) {
   // Inputs Formularios
   const [notaCierre, setNotaCierre] = useState("");
   const [grupoEscalar, setGrupoEscalar] = useState("");
+  const [tecnicoEscalar, setTecnicoEscalar] = useState("");
+  const [tecnicosDisponibles, setTecnicosDisponibles] = useState([]);
   const [asuntoCorreo, setAsuntoCorreo] = useState("");
   const [cuerpoCorreo, setCuerpoCorreo] = useState("");
   
@@ -86,14 +88,64 @@ function DetalleTicket({ ticket, usuarioActual, alVolver }) {
   const handleEscalar = async () => { /* ... igual que antes ... */ 
       if(!grupoEscalar) return alert("Selecciona grupo");
       try {
-        await ticketService.asignarGrupo(ticketData.id, grupoEscalar, usuarioActual.id);
+        await ticketService.derivarTicket(
+          ticketData.id,
+          Number(grupoEscalar),
+          Number(usuarioActual.id),
+          tecnicoEscalar ? Number(tecnicoEscalar) : null
+        );
         setModalEscalarOpen(false);
         setGrupoEscalar("");
+        setTecnicoEscalar("");
+        setTecnicosDisponibles([]);
         cargarDatos();
         alert("Ticket escalado correctamente.");
       } catch (e) {
         console.error(e);
-        alert("No se pudo escalar el ticket.");
+        alert(e.message || "No se pudo escalar el ticket.");
+      }
+  };
+
+  const normalizarRol = (rol) => String(rol || "").trim().toUpperCase();
+
+  const cargarTecnicosPorGrupo = async (grupoId) => {
+      if (!grupoId) {
+          setTecnicosDisponibles([]);
+          setTecnicoEscalar("");
+          return;
+      }
+      try {
+          let data = [];
+
+          const porGrupoRes = await fetch(`${API_BASE_URL}/usuarios/tecnicos?grupoId=${grupoId}`);
+          if (porGrupoRes.ok) {
+              data = await porGrupoRes.json();
+          }
+
+          // Fallback: si no hay técnicos asignados al grupo o la ruta no responde,
+          // intentamos traer todos los técnicos.
+          if (!Array.isArray(data) || data.length === 0) {
+              const tecnicosRes = await fetch(`${API_BASE_URL}/usuarios/tecnicos`);
+              if (tecnicosRes.ok) {
+                  data = await tecnicosRes.json();
+              }
+          }
+
+          // Último fallback: filtrar desde /usuarios para compatibilidad.
+          if (!Array.isArray(data) || data.length === 0) {
+              const usuariosRes = await fetch(`${API_BASE_URL}/usuarios`);
+              if (usuariosRes.ok) {
+                  const usuarios = await usuariosRes.json();
+                  data = (usuarios || []).filter((u) => normalizarRol(u.rol) === "TECNICO");
+              }
+          }
+
+          setTecnicosDisponibles(Array.isArray(data) ? data : []);
+          setTecnicoEscalar("");
+      } catch (error) {
+          console.error(error);
+          setTecnicosDisponibles([]);
+          setTecnicoEscalar("");
       }
   };
   const handleResolver = async () => { /* ... igual que antes ... */ 
@@ -474,7 +526,11 @@ function DetalleTicket({ ticket, usuarioActual, alVolver }) {
                     <select
                         className="w-full border border-gray-200 rounded p-2 mb-4"
                         value={grupoEscalar}
-                        onChange={(e) => setGrupoEscalar(e.target.value)}
+                        onChange={(e) => {
+                            const grupoId = e.target.value;
+                            setGrupoEscalar(grupoId);
+                            cargarTecnicosPorGrupo(grupoId);
+                        }}
                     >
                         <option value="">Selecciona un grupo</option>
                         {grupos.map((g) => (
@@ -483,8 +539,26 @@ function DetalleTicket({ ticket, usuarioActual, alVolver }) {
                             </option>
                         ))}
                     </select>
+                    <select
+                        className="w-full border border-gray-200 rounded p-2 mb-4"
+                        value={tecnicoEscalar}
+                        onChange={(e) => setTecnicoEscalar(e.target.value)}
+                        disabled={!grupoEscalar}
+                    >
+                        <option value="">Sin técnico (opcional)</option>
+                        {tecnicosDisponibles.map((t) => (
+                            <option key={t.id} value={t.id}>
+                                {t.nombre}
+                            </option>
+                        ))}
+                    </select>
                     <div className="flex justify-end gap-2">
-                        <button onClick={() => setModalEscalarOpen(false)} className="px-4 py-2 text-gray-500">Cancelar</button>
+                        <button onClick={() => {
+                            setModalEscalarOpen(false);
+                            setGrupoEscalar("");
+                            setTecnicoEscalar("");
+                            setTecnicosDisponibles([]);
+                        }} className="px-4 py-2 text-gray-500">Cancelar</button>
                         <button onClick={handleEscalar} className="bg-blue-600 text-white px-4 py-2 rounded">Confirmar</button>
                     </div>
                 </div>
@@ -528,15 +602,35 @@ function DetalleTicket({ ticket, usuarioActual, alVolver }) {
                     <select
                         className="w-full border p-2 mb-4 rounded"
                         value={grupoEscalar}
-                        onChange={(e) => setGrupoEscalar(e.target.value)}
+                        onChange={(e) => {
+                            const grupoId = e.target.value;
+                            setGrupoEscalar(grupoId);
+                            cargarTecnicosPorGrupo(grupoId);
+                        }}
                     >
                         <option value="">Selecciona un grupo</option>
                         {grupos.map((g) => (
                             <option key={g.id} value={g.id}>{g.nombre}</option>
                         ))}
                     </select>
+                    <select
+                        className="w-full border p-2 mb-4 rounded"
+                        value={tecnicoEscalar}
+                        onChange={(e) => setTecnicoEscalar(e.target.value)}
+                        disabled={!grupoEscalar}
+                    >
+                        <option value="">Sin técnico (opcional)</option>
+                        {tecnicosDisponibles.map((t) => (
+                            <option key={t.id} value={t.id}>{t.nombre}</option>
+                        ))}
+                    </select>
                     <div className="flex justify-end gap-2">
-                        <button onClick={() => setModalEscalarOpen(false)} className="px-4 py-2 border rounded">Cancelar</button>
+                        <button onClick={() => {
+                            setModalEscalarOpen(false);
+                            setGrupoEscalar("");
+                            setTecnicoEscalar("");
+                            setTecnicosDisponibles([]);
+                        }} className="px-4 py-2 border rounded">Cancelar</button>
                         <button onClick={handleEscalar} className="px-4 py-2 bg-blue-600 text-white rounded">Escalar</button>
                     </div>
                 </div>

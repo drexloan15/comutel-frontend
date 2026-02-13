@@ -9,11 +9,25 @@ import DetalleTicket from '../components/DetalleTicket';
 import AdminUsers from '../components/AdminUsers';               // Para "Administración -> Usuarios"
 import AdminGroups from '../components/AdminGroups';             // Para "Administración -> Grupos"
 import GestorKB from '../components/GestorKB';                   // Para "Base Conocimiento"
+import RolesPermisos from '../components/RolesPermisos';
+import { normalizeRole } from '../constants/permissions';
 
-function TechPortal({ usuario, cerrarSesion }) {
+function TechPortal({
+    usuario,
+    cerrarSesion,
+    puedeVerAdmin,
+    esSuperAdmin,
+    puedeGestionarRoles,
+    modoVista,
+    onAlternarVista,
+    permissionsConfig,
+    onChangePermissionsConfig,
+}) {
     // Estado inicial
     const [vista, setVista] = useState('PANEL'); 
     const [ticketSeleccionado, setTicketSeleccionado] = useState(null);
+    const rol = normalizeRole(usuario?.rol);
+    const puedeVerRolesPermisos = puedeGestionarRoles && (rol === 'ADMIN' || rol === 'TESTERADMIN');
 
     // --- FUNCIÓN DE ENRUTAMIENTO (AQUÍ ESTABA EL ERROR) ---
     const renderContenido = () => {
@@ -37,14 +51,14 @@ function TechPortal({ usuario, cerrarSesion }) {
             // Si solo manda 'ADMINISTRACION', mostramos Usuarios por defecto.
             case 'USUARIOS':
             case 'ADMIN_USERS':
-                return <AdminUsers />;
+                return puedeVerAdmin ? <AdminUsers usuarioActual={usuario} /> : <DashboardGraficos usuarioActual={usuario} />;
                 
             case 'GRUPOS':
             case 'ADMIN_GROUPS':
-                return <AdminGroups />;
+                return puedeVerAdmin ? <AdminGroups /> : <DashboardGraficos usuarioActual={usuario} />;
 
             case 'ADMINISTRACION': // Caso genérico si hacen clic en el padre
-                return <AdminUsers />; 
+                return puedeVerAdmin ? <AdminUsers usuarioActual={usuario} /> : <DashboardGraficos usuarioActual={usuario} />;
 
             // 4. CASO GESTIÓN DE TICKETS
             case 'TICKETS':
@@ -68,6 +82,15 @@ function TechPortal({ usuario, cerrarSesion }) {
             case 'KB':
             case 'CONOCIMIENTO':
                 return <GestorKB usuarioActual={usuario} />;
+
+            case 'ROLES':
+                return puedeVerRolesPermisos ? (
+                    <RolesPermisos
+                        config={permissionsConfig}
+                        onChangeConfig={onChangePermissionsConfig}
+                        puedeGestionarTesterAdmin={esSuperAdmin}
+                    />
+                ) : <DashboardGraficos usuarioActual={usuario} />;
                 
             // DEFAULT (Por si falla algo, volvemos al inicio)
             default:
@@ -85,7 +108,11 @@ function TechPortal({ usuario, cerrarSesion }) {
                     setTicketSeleccionado(null); 
                 }}
                 cerrarSesion={cerrarSesion}
-                esAdmin={usuario.rol === 'ADMIN'}
+                puedeVerAdmin={puedeVerAdmin}
+                esSuperAdmin={esSuperAdmin}
+                puedeGestionarRoles={puedeGestionarRoles}
+                modoVista={modoVista}
+                onAlternarVista={onAlternarVista}
             />
 
             {/* ÁREA PRINCIPAL */}
@@ -100,6 +127,7 @@ function TechPortal({ usuario, cerrarSesion }) {
                             {ticketSeleccionado ? `Ticket #${ticketSeleccionado.id}` : 
                              (vista === 'USUARIOS' || vista === 'ADMINISTRACION') ? 'Gestión de Usuarios' :
                              vista === 'GRUPOS' ? 'Gestión de Grupos' :
+                             vista === 'ROLES' ? 'Roles y Permisos' :
                              vista === 'KB' ? 'Base de Conocimiento' : vista}
                         </h1>
                         <div className="text-sm text-slate-500">

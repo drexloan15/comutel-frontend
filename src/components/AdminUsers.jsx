@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { userService } from '../services/userService'; // Importamos el servicio
+import { normalizeRole } from '../constants/permissions';
 
-function AdminUsers() {
+function AdminUsers({ usuarioActual }) {
   const [usuarios, setUsuarios] = useState([]);
   // Formulario
   const [nombre, setNombre] = useState("");
@@ -10,6 +11,7 @@ function AdminUsers() {
   const [rol, setRol] = useState("CLIENTE"); // Valor por defecto
   
   const [error, setError] = useState(null);
+  const esSuperAdmin = normalizeRole(usuarioActual?.rol) === 'TESTERADMIN';
 
   useEffect(() => {
     cargarUsuarios();
@@ -29,6 +31,10 @@ function AdminUsers() {
     e.preventDefault();
     if (!nombre.trim() || !email.trim() || !password.trim()) {
         return alert("Todos los campos son obligatorios");
+    }
+
+    if (rol === 'TESTERADMIN' && !esSuperAdmin) {
+      return alert("Solo TESTERADMIN puede crear usuarios TESTERADMIN.");
     }
 
     const nuevoUsuario = { nombre, email, password, rol };
@@ -91,6 +97,7 @@ function AdminUsers() {
                 <option value="CLIENTE">Cliente</option>
                 <option value="TECNICO">Técnico</option>
                 <option value="ADMIN">Administrador</option>
+                {esSuperAdmin && <option value="TESTERADMIN">Tester Admin</option>}
               </select>
             </div>
             <button className="w-full bg-blue-600 text-white font-bold py-2 rounded hover:bg-blue-700">
@@ -117,6 +124,7 @@ function AdminUsers() {
                   <td className="py-3 text-sm text-gray-600">{u.email}</td>
                   <td className="py-3">
                     <span className={`text-xs px-2 py-1 rounded font-bold border ${
+                      u.rol === 'TESTERADMIN' ? 'bg-amber-100 text-amber-700 border-amber-200' :
                       u.rol === 'ADMIN' ? 'bg-purple-100 text-purple-700 border-purple-200' :
                       u.rol === 'TECNICO' ? 'bg-blue-100 text-blue-700 border-blue-200' :
                       'bg-gray-100 text-gray-600 border-gray-200'

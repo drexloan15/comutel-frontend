@@ -64,6 +64,25 @@ export const ticketService = {
     return await response.json();
   },
 
+  // 5.1 Derivar Ticket (grupo obligatorio, tecnico opcional)
+  derivarTicket: async (ticketId, grupoId, actorId, tecnicoId = null) => {
+    const payload = { grupoId, actorId };
+    if (tecnicoId) payload.tecnicoId = tecnicoId;
+
+    const response = await fetch(`${API_BASE_URL}/tickets/${ticketId}/derivar`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const mensaje = await response.text();
+      throw new Error(mensaje || "Error al derivar ticket");
+    }
+
+    return await response.json();
+  },
+
   // 👇👇👇 AQUÍ ESTÁ LA FUNCIÓN QUE FALTABA 👇👇👇
   // 5.5. Asignar Técnico (Tomar Caso)
   atenderTicket: async (ticketId, tecnicoId) => {

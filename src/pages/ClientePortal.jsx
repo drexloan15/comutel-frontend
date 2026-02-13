@@ -91,7 +91,7 @@ const ClienteChat = ({ ticket, usuario, onVolver, onEnviarMensaje }) => {
 };
 
 // --- COMPONENTE PRINCIPAL ---
-function ClientePortal({ usuario, cerrarSesion }) {
+function ClientePortal({ usuario, cerrarSesion, esSuperAdmin = false, onAlternarVista }) {
     const [vista, setVista] = useState('HOME'); 
     const [tickets, setTickets] = useState([]);
     const [articulos, setArticulos] = useState([]);
@@ -144,6 +144,14 @@ function ClientePortal({ usuario, cerrarSesion }) {
                             <span className="text-sm font-bold text-slate-700">{usuario.nombre}</span>
                             <span className="text-[10px] text-slate-400 uppercase">Cliente Corporativo</span>
                         </div>
+                        {esSuperAdmin && (
+                            <button
+                                onClick={onAlternarVista}
+                                className="text-sm text-amber-600 font-bold border border-amber-200 px-3 py-1 rounded-full hover:bg-amber-50 transition"
+                            >
+                                Vista Admin
+                            </button>
+                        )}
                         
                         <button onClick={cerrarSesion} className="text-sm text-red-500 font-bold border border-red-100 px-3 py-1 rounded-full hover:bg-red-50 transition">Salir</button>
                     </div>

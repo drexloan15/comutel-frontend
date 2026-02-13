@@ -1,6 +1,15 @@
 import { useState } from 'react';
 
-const Sidebar = ({ seccionActual, setSeccionActual, cerrarSesion, esAdmin }) => {
+const Sidebar = ({
+  seccionActual,
+  setSeccionActual,
+  cerrarSesion,
+  puedeVerAdmin,
+  esSuperAdmin,
+  puedeGestionarRoles,
+  modoVista,
+  onAlternarVista,
+}) => {
   const [colapsado, setColapsado] = useState(false);
 
   // 1. CORRECCIÓN DE IDs PARA QUE COINCIDAN CON TECHPORTAL.JSX
@@ -13,11 +22,16 @@ const Sidebar = ({ seccionActual, setSeccionActual, cerrarSesion, esAdmin }) => 
 
   // 2. CORRECCIÓN DE ADMINISTRACIÓN (DESGLOSADO)
   // En lugar de un solo botón "ADMIN", mostramos las sub-opciones reales
-  if (esAdmin) {
+  if (puedeVerAdmin) {
     // Agregamos un separador visual o lógica para agrupar
     menuItems.push({ type: 'separator', label: 'ADMINISTRACIÓN' });
     menuItems.push({ id: 'USUARIOS', icono: '👥', label: 'Usuarios' });
     menuItems.push({ id: 'GRUPOS',   icono: '🏢', label: 'Grupos' });
+  }
+
+  if (puedeGestionarRoles) {
+    menuItems.push({ type: 'separator', label: 'SEGURIDAD' });
+    menuItems.push({ id: 'ROLES', icono: '🛡️', label: 'Roles / Permisos' });
   }
 
   return (
@@ -88,6 +102,14 @@ const Sidebar = ({ seccionActual, setSeccionActual, cerrarSesion, esAdmin }) => 
                     <p className="text-sm font-medium truncate text-white">
                       Mi Perfil
                     </p>
+                    {esSuperAdmin && (
+                      <button
+                        onClick={onAlternarVista}
+                        className="text-xs text-amber-300 hover:text-amber-200 flex items-center gap-1 mt-0.5"
+                      >
+                        {modoVista === 'ADMIN' ? 'Cambiar a vista cliente' : 'Cambiar a vista admin'}
+                      </button>
+                    )}
                     <button onClick={cerrarSesion} className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1 mt-0.5">
                         Cerrar Sesión
                     </button>
