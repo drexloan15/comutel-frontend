@@ -1,5 +1,12 @@
 import { API_BASE_URL } from "../constants/api";
 
+const ALLOWED_PROCESS_TYPES = new Set([
+  "INCIDENCIA",
+  "REQUERIMIENTO",
+  "CAMBIO",
+  "APROBACION",
+]);
+
 const obtenerUsuarioSesion = () => {
   try {
     const sesion = localStorage.getItem("sesionComutel");
@@ -19,55 +26,122 @@ const agregarUsuarioId = (url) => {
   return `${url}${separador}usuarioId=${usuario.id}`;
 };
 
+const normalizarTicket = (ticket = {}) => ({
+  ...ticket,
+  workflowInstanceId: ticket.workflowInstanceId ?? null,
+  workflowStateKey: ticket.workflowStateKey ?? null,
+  processType: ticket.processType ?? null,
+  workflowKey: ticket.workflowKey ?? null,
+});
+
+const normalizarListaTickets = (tickets) => {
+  if (!Array.isArray(tickets)) return [];
+  return tickets.map(normalizarTicket);
+};
+
+const leerError = async (response, fallback) => {
+  if (response.ok) return;
+  const mensaje = await response.text();
+  throw new Error(mensaje || fallback);
+};
+
+const buildCrearTicketPayload = (ticket = {}) => {
+  if (ticket.usuarioId == null) {
+    throw new Error("usuarioId es obligatorio para crear ticket");
+  }
+
+  const payload = {
+    titulo: ticket.titulo,
+    descripcion: ticket.descripcion,
+    prioridad: ticket.prioridad,
+    usuarioId: ticket.usuarioId,
+  };
+
+  if (ticket.processType) {
+    const processType = String(ticket.processType).trim().toUpperCase();
+    if (!ALLOWED_PROCESS_TYPES.has(processType)) {
+      throw new Error("processType invalido");
+    }
+    payload.processType = processType;
+  }
+
+  if (ticket.workflowKey) {
+    payload.workflowKey = String(ticket.workflowKey).trim();
+  }
+
+  return payload;
+};
+
 export const ticketService = {
-  // 1. Listar todos
   listar: async () => {
     const response = await fetch(agregarUsuarioId(`${API_BASE_URL}/tickets`));
     if (!response.ok) throw new Error("Error cargando tickets");
-    return await response.json();
+    const data = await response.json();
+    return normalizarListaTickets(data);
   },
 
-  // 2. Obtener uno por ID (Detalle)
   obtenerPorId: async (id) => {
     const response = await fetch(agregarUsuarioId(`${API_BASE_URL}/tickets/${id}`));
     if (!response.ok) throw new Error("Error cargando el ticket");
-    return await response.json();
+    const data = await response.json();
+    return normalizarTicket(data);
   },
 
-  // 3. Crear Ticket
   crear: async (ticket) => {
+    const payload = buildCrearTicketPayload(ticket);
     const response = await fetch(`${API_BASE_URL}/tickets`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(ticket),
+      body: JSON.stringify(payload),
     });
-    if (!response.ok) throw new Error("Error creando ticket");
-    return await response.json();
+    await leerError(response, "Error creando ticket");
+    const data = await response.json();
+    return normalizarTicket(data);
   },
 
-  // 4. Resolver (Finalizar)
   resolver: async (id, notaCierre) => {
     const response = await fetch(`${API_BASE_URL}/tickets/${id}/finalizar`, {
       method: "PUT",
-      headers: { "Content-Type": "text/plain" }, // O application/json si tu backend lo requiere así
-      body: notaCierre
+      headers: { "Content-Type": "text/plain" },
+      body: notaCierre,
     });
-    if (!response.ok) throw new Error("Error al resolver ticket");
-    return await response.json();
+    await leerError(response, "Error al resolver ticket");
+    const data = await response.json();
+    return normalizarTicket(data);
   },
 
-  // 5. Asignar Grupo
+  ejecutarTransicion: async (ticketId, eventKey, actorId, payload) => {
+    if (!eventKey) {
+      throw new Error("eventKey es obligatorio");
+    }
+
+    const encodedEventKey = encodeURIComponent(eventKey);
+    const actorQuery = actorId != null ? `?actorId=${encodeURIComponent(actorId)}` : "";
+    const response = await fetch(`${API_BASE_URL}/tickets/${ticketId}/transition/${encodedEventKey}${actorQuery}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: payload ? JSON.stringify(payload) : undefined,
+    });
+
+    await leerError(response, "Error ejecutando transicion de workflow");
+    const data = await response.json();
+    return normalizarTicket(data);
+  },
+
   asignarGrupo: async (ticketId, grupoId, usuarioActorId) => {
     const url = `${API_BASE_URL}/tickets/${ticketId}/asignar-grupo/${grupoId}?actorId=${usuarioActorId}`;
     const response = await fetch(url, { method: "PUT" });
-    if (!response.ok) throw new Error("Error al derivar ticket");
-    return await response.json();
+    await leerError(response, "Error al derivar ticket");
+    const data = await response.json();
+    return normalizarTicket(data);
   },
 
-  // 5.1 Derivar Ticket (grupo obligatorio, tecnico opcional)
   derivarTicket: async (ticketId, grupoId, actorId, tecnicoId = null) => {
-    const payload = { grupoId, actorId };
-    if (tecnicoId) payload.tecnicoId = tecnicoId;
+    const payload = {
+      grupoId,
+      actorId,
+      tecnicoId: tecnicoId == null ? null : tecnicoId,
+    };
 
     const response = await fetch(`${API_BASE_URL}/tickets/${ticketId}/derivar`, {
       method: "PUT",
@@ -75,29 +149,20 @@ export const ticketService = {
       body: JSON.stringify(payload),
     });
 
-    if (!response.ok) {
-      const mensaje = await response.text();
-      throw new Error(mensaje || "Error al derivar ticket");
-    }
-
-    return await response.json();
+    await leerError(response, "Error al derivar ticket");
+    const data = await response.json();
+    return normalizarTicket(data);
   },
 
-  // 👇👇👇 AQUÍ ESTÁ LA FUNCIÓN QUE FALTABA 👇👇👇
-  // 5.5. Asignar Técnico (Tomar Caso)
   atenderTicket: async (ticketId, tecnicoId) => {
     const response = await fetch(`${API_BASE_URL}/tickets/${ticketId}/atender/${tecnicoId}`, {
-        method: "PUT"
+      method: "PUT",
     });
-    
-    if (!response.ok) {
-        throw new Error("No se pudo asignar el técnico al ticket.");
-    }
-    return await response.json();
+    await leerError(response, "No se pudo asignar el tecnico al ticket.");
+    const data = await response.json();
+    return normalizarTicket(data);
   },
-  // 👆👆👆 ----------------------------------- 👆👆👆
 
-  // 6. Comentarios
   listarComentarios: async (ticketId) => {
     const res = await fetch(`${API_BASE_URL}/tickets/${ticketId}/comentarios`);
     return await res.json();
@@ -107,18 +172,16 @@ export const ticketService = {
     await fetch(`${API_BASE_URL}/tickets/${ticketId}/comentarios`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
     });
   },
-  
-  // 7. Historial
+
   listarHistorial: async (ticketId) => {
     const res = await fetch(`${API_BASE_URL}/tickets/${ticketId}/historial`);
-    if(!res.ok) return [];
+    if (!res.ok) return [];
     return await res.json();
   },
 
-  // 8. Extras
   iniciarChat: async (ticketId, usuarioId) => {
     await fetch(`${API_BASE_URL}/tickets/${ticketId}/iniciar-chat?usuarioId=${usuarioId}`, { method: "POST" });
   },
@@ -130,9 +193,9 @@ export const ticketService = {
 
     const res = await fetch(`${API_BASE_URL}/adjuntos/ticket/${ticketId}`, {
       method: "POST",
-      body: formData
+      body: formData,
     });
-    if(!res.ok) throw new Error("Error subiendo archivo");
+    if (!res.ok) throw new Error("Error subiendo archivo");
     return await res.json();
   },
 
@@ -145,12 +208,11 @@ export const ticketService = {
     const res = await fetch(`${API_BASE_URL}/tickets/${ticketId}/enviar-correo`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ asunto, mensaje })
+      body: JSON.stringify({ asunto, mensaje }),
     });
     if (!res.ok) throw new Error("Error enviando correo manual");
   },
 
-  // 9. Activos
   listarActivosInventario: async () => {
     const res = await fetch(`${API_BASE_URL}/tickets/activos`);
     return await res.json();
@@ -158,16 +220,17 @@ export const ticketService = {
 
   vincularActivo: async (ticketId, activoId) => {
     const res = await fetch(`${API_BASE_URL}/tickets/${ticketId}/vincular-activo/${activoId}`, {
-      method: "PUT"
+      method: "PUT",
     });
-    return await res.json();
+    const data = await res.json();
+    return normalizarTicket(data);
   },
-  
+
   crearActivo: async (activo) => {
-      await fetch(`${API_BASE_URL}/tickets/activos`, {
-          method: "POST",
-          headers: {"Content-Type": "application/json"},
-          body: JSON.stringify(activo)
-      });
+    await fetch(`${API_BASE_URL}/tickets/activos`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(activo),
+    });
   },
 };

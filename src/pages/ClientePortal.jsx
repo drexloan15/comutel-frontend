@@ -98,7 +98,13 @@ function ClientePortal({ usuario, cerrarSesion, esSuperAdmin = false, onAlternar
     const [articuloLeido, setArticuloLeido] = useState(null);
     const [ticketActivo, setTicketActivo] = useState(null);
     const [busqueda, setBusqueda] = useState("");
-    const [nuevoTicket, setNuevoTicket] = useState({ titulo: "", descripcion: "", prioridad: "MEDIA" });
+    const [nuevoTicket, setNuevoTicket] = useState({
+        titulo: "",
+        descripcion: "",
+        prioridad: "MEDIA",
+        processType: "",
+        workflowKey: "",
+    });
     const articulosFiltrados = articulos.filter((a) =>
         a.titulo.toLowerCase().includes(busqueda.toLowerCase())
     );
@@ -121,7 +127,13 @@ function ClientePortal({ usuario, cerrarSesion, esSuperAdmin = false, onAlternar
         try {
             await ticketService.crear({ ...nuevoTicket, usuarioId: usuario.id });
             alert("✅ Solicitud enviada");
-            setNuevoTicket({ titulo: "", descripcion: "", prioridad: "MEDIA" });
+            setNuevoTicket({
+                titulo: "",
+                descripcion: "",
+                prioridad: "MEDIA",
+                processType: "",
+                workflowKey: "",
+            });
             setVista('HOME');
             cargarDatos();
         } catch (e) { alert("Error al crear ticket"); }
@@ -315,6 +327,14 @@ function ClientePortal({ usuario, cerrarSesion, esSuperAdmin = false, onAlternar
                                 <option value="ALTA">Prioridad Alta</option>
                                 <option value="BAJA">Prioridad Baja</option>
                             </select>
+                            <select className="w-full border rounded-lg p-3" value={nuevoTicket.processType} onChange={e => setNuevoTicket({...nuevoTicket, processType: e.target.value})}>
+                                <option value="">Tipo de proceso (opcional)</option>
+                                <option value="INCIDENCIA">INCIDENCIA</option>
+                                <option value="REQUERIMIENTO">REQUERIMIENTO</option>
+                                <option value="CAMBIO">CAMBIO</option>
+                                <option value="APROBACION">APROBACION</option>
+                            </select>
+                            <input className="w-full border rounded-lg p-3 outline-none focus:ring-2 focus:ring-blue-500" placeholder="Workflow key (opcional)" value={nuevoTicket.workflowKey} onChange={e => setNuevoTicket({...nuevoTicket, workflowKey: e.target.value})} />
                             <button type="submit" className="w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700">Enviar</button>
                         </form>
                     </div>

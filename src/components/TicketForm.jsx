@@ -1,10 +1,12 @@
 import { useState } from "react";
-import { API_BASE_URL } from "../constants/api";
+import { ticketService } from "../services/ticketService";
 
 function TicketForm({ usuarioActual }) {
   const [titulo, setTitulo] = useState("");
   const [descripcion, setDescripcion] = useState("");
   const [prioridad, setPrioridad] = useState("MEDIA");
+  const [processType, setProcessType] = useState("");
+  const [workflowKey, setWorkflowKey] = useState("");
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -19,28 +21,22 @@ function TicketForm({ usuarioActual }) {
       titulo,
       descripcion,
       prioridad,
-      estado: "NUEVO",
       usuarioId: usuarioActual.id,
+      processType,
+      workflowKey,
     };
 
-    fetch(`${API_BASE_URL}/tickets`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(nuevoTicket),
-    })
-      .then(async (response) => {
-        if (response.ok) {
-          alert("Ticket creado con exito.");
-          setTitulo("");
-          setDescripcion("");
-          window.location.reload();
-        } else {
-          const errorTexto = await response.text();
-          alert(`Error al guardar: ${errorTexto}`);
-        }
+    ticketService.crear(nuevoTicket)
+      .then(() => {
+        alert("Ticket creado con exito.");
+        setTitulo("");
+        setDescripcion("");
+        setProcessType("");
+        setWorkflowKey("");
+        window.location.reload();
       })
-      .catch(() => {
-        alert("Error de conexion con backend.");
+      .catch((error) => {
+        alert(`Error al guardar: ${error?.message || "Error de conexion con backend."}`);
       });
   };
 
@@ -105,6 +101,38 @@ function TicketForm({ usuarioActual }) {
             <option value="MEDIA">Media</option>
             <option value="ALTA">Alta</option>
           </select>
+        </div>
+
+        <div style={{ marginBottom: "15px" }}>
+          <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>Tipo de proceso (opcional):</label>
+          <select
+            value={processType}
+            onChange={(e) => setProcessType(e.target.value)}
+            style={{ width: "100%", padding: "10px", borderRadius: "5px", border: "1px solid #ddd" }}
+          >
+            <option value="">Seleccionar...</option>
+            <option value="INCIDENCIA">INCIDENCIA</option>
+            <option value="REQUERIMIENTO">REQUERIMIENTO</option>
+            <option value="CAMBIO">CAMBIO</option>
+            <option value="APROBACION">APROBACION</option>
+          </select>
+        </div>
+
+        <div style={{ marginBottom: "15px" }}>
+          <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>Workflow Key (opcional):</label>
+          <input
+            type="text"
+            value={workflowKey}
+            onChange={(e) => setWorkflowKey(e.target.value)}
+            style={{
+              width: "100%",
+              padding: "10px",
+              borderRadius: "5px",
+              border: "1px solid #ddd",
+              boxSizing: "border-box",
+            }}
+            placeholder="Ej: ticket-default-v1"
+          />
         </div>
 
         <button

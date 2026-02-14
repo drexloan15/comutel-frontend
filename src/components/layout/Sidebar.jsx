@@ -27,6 +27,7 @@ const Sidebar = ({
     menuItems.push({ type: 'separator', label: 'ADMINISTRACIÓN' });
     menuItems.push({ id: 'USUARIOS', icono: '👥', label: 'Usuarios' });
     menuItems.push({ id: 'GRUPOS',   icono: '🏢', label: 'Grupos' });
+    menuItems.push({ id: 'WORKFLOWS', icono: '🔗', label: 'Workflows' });
   }
 
   if (puedeGestionarRoles) {

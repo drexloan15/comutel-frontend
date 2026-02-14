@@ -1,20 +1,29 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { ticketService } from '../services/ticketService';
+import { workflowService } from "../services/workflowService";
 import { groupService } from '../services/groupService';
 import { API_BASE_URL, buildApiUrl } from "../constants/api";
 import ContadorSLA from './ContadorSLA'; 
 
 // --- FLECHAS WORKFLOW ---
-const WorkflowStep = ({ label, date, active, completed, isFirst, isLast }) => {
-    let bgClass = "bg-gray-200 text-gray-400"; 
-    if (completed) bgClass = "bg-[#5dbea3] text-white"; 
-    if (active) bgClass = "bg-[#2bdebc] text-white";    
+const WorkflowStep = ({ label, date, active, completed }) => {
+    let bgClass = "bg-gray-200 text-gray-400";
+    let dotClass = "bg-gray-400/70";
+    if (completed) {
+      bgClass = "bg-gradient-to-r from-emerald-500 to-emerald-400 text-white";
+      dotClass = "bg-white";
+    }
+    if (active) {
+      bgClass = "bg-gradient-to-r from-cyan-500 to-teal-400 text-white ring-2 ring-cyan-200";
+      dotClass = "bg-white";
+    }
     const zIndex = active ? "z-20" : completed ? "z-10" : "z-0";
 
     return (
-      <div className={`relative flex-1 h-16 flex flex-col justify-center items-center px-8 transition-all duration-300 ${bgClass} ${zIndex} chevron-step`}>
+      <div className={`relative flex-1 h-16 flex flex-col justify-center items-center px-8 transition-all duration-300 ${bgClass} ${zIndex} chevron-step shadow-sm`}>
+          <span className={`absolute top-2 left-3 h-2.5 w-2.5 rounded-full ${dotClass}`}></span>
           <span className="font-bold text-sm uppercase tracking-wide">{label}</span>
-          {date && <span className="text-[10px] font-medium opacity-90 mt-1">{date}</span>}
+          {date && <span className="text-[10px] font-semibold opacity-90 mt-1">{date}</span>}
       </div>
     );
 };
@@ -35,6 +44,9 @@ function DetalleTicket({ ticket, usuarioActual, alVolver }) {
   const [activeTab, setActiveTab] = useState('PROGRESO'); 
   const [nuevoComentario, setNuevoComentario] = useState("");
   const [archivoSeleccionado, setArchivoSeleccionado] = useState(null);
+  const [transicionesDisponibles, setTransicionesDisponibles] = useState([]);
+  const [cargandoTransiciones, setCargandoTransiciones] = useState(false);
+  const [ejecutandoEventoKey, setEjecutandoEventoKey] = useState(null);
 
   // --- MODALES ---
   const [modalResolverOpen, setModalResolverOpen] = useState(false);
@@ -55,6 +67,49 @@ function DetalleTicket({ ticket, usuarioActual, alVolver }) {
   const [nuevoActivo, setNuevoActivo] = useState({ nombre: "", codigo: "", tipo: "HARDWARE" });
 
   const mensajesEndRef = useRef(null);
+  const workflowStepIndex = useMemo(() => {
+    const key = String(ticketData?.workflowStateKey || "").toUpperCase();
+    const estado = String(ticketData?.estado || "").toUpperCase();
+    const source = key || estado;
+
+    if (!source) return 0;
+
+    if (
+      source.includes("RESOL") ||
+      source.includes("CLOSE") ||
+      source === "RESUELTO" ||
+      source === "CERRADO"
+    ) return 2;
+
+    if (
+      source.includes("PROGRESS") ||
+      source.includes("ASSIGN") ||
+      source.includes("WORK") ||
+      source.includes("ESCAL") ||
+      source.includes("ATENCION") ||
+      source.includes("EN_PROCESO")
+    ) return 1;
+
+    return 0;
+  }, [ticketData?.workflowStateKey, ticketData?.estado]);
+
+  const cargarTransiciones = async (instanceId) => {
+    if (!instanceId) {
+      setTransicionesDisponibles([]);
+      return;
+    }
+
+    try {
+      setCargandoTransiciones(true);
+      const options = await workflowService.obtenerTransicionesDisponibles(instanceId, usuarioActual?.id);
+      setTransicionesDisponibles(Array.isArray(options) ? options : []);
+    } catch (error) {
+      console.error(error);
+      setTransicionesDisponibles([]);
+    } finally {
+      setCargandoTransiciones(false);
+    }
+  };
 
   useEffect(() => {
     cargarDatos();
@@ -81,7 +136,30 @@ function DetalleTicket({ ticket, usuarioActual, alVolver }) {
       if (JSON.stringify(aData) !== JSON.stringify(adjuntos)) setAdjuntos(aData);
       setHistorial(hData);
       setGrupos(gData);
+      await cargarTransiciones(tData.workflowInstanceId);
     } catch (error) { console.error(error); } 
+  };
+
+  const ejecutarEventoWorkflow = async (eventKey, payload = null) => {
+    if (!eventKey) return;
+
+    try {
+      setEjecutandoEventoKey(eventKey);
+      await ticketService.ejecutarTransicion(
+        ticketData.id,
+        eventKey,
+        Number(usuarioActual.id),
+        payload
+      );
+      await cargarDatos();
+      alert(`Evento ${eventKey} ejecutado correctamente.`);
+    } catch (error) {
+      console.error(error);
+      alert(error?.message || `No se pudo ejecutar el evento ${eventKey}.`);
+      throw error;
+    } finally {
+      setEjecutandoEventoKey(null);
+    }
   };
 
   // --- ACCIONES GENERALES ---
@@ -98,7 +176,7 @@ function DetalleTicket({ ticket, usuarioActual, alVolver }) {
         setGrupoEscalar("");
         setTecnicoEscalar("");
         setTecnicosDisponibles([]);
-        cargarDatos();
+        await cargarDatos();
         alert("Ticket escalado correctamente.");
       } catch (e) {
         console.error(e);
@@ -127,15 +205,33 @@ function DetalleTicket({ ticket, usuarioActual, alVolver }) {
   const handleResolver = async () => { /* ... igual que antes ... */ 
       if(!notaCierre.trim()) return;
       try {
-        await ticketService.resolver(ticketData.id, notaCierre);
+        await ejecutarEventoWorkflow("RESOLVE", { notaCierre });
         setModalResolverOpen(false);
         setNotaCierre("");
-        cargarDatos();
         alert("Ticket resuelto correctamente.");
       } catch (e) {
         console.error(e);
-        alert("No se pudo resolver el ticket.");
       }
+  };
+  const handleEjecutarTransicion = async (transition) => {
+    const eventKey = transition?.eventKey;
+    if (!eventKey) return;
+
+    if (eventKey === "ESCALATE") {
+      setModalEscalarOpen(true);
+      return;
+    }
+
+    if (eventKey === "RESOLVE") {
+      setModalResolverOpen(true);
+      return;
+    }
+
+    try {
+      await ejecutarEventoWorkflow(eventKey);
+    } catch {
+      // El error ya se notifica en ejecutarEventoWorkflow.
+    }
   };
   const handleEnviarCorreo = async () => { /* ... igual que antes ... */ 
        if(!asuntoCorreo.trim()) return alert("Ingresa un asunto");
@@ -227,10 +323,31 @@ function DetalleTicket({ ticket, usuarioActual, alVolver }) {
             </div>
         </div>
 
-        <div className="flex w-full mb-8 filter drop-shadow-md px-1">
-            <WorkflowStep label="Clasificación" date={new Date(ticketData.fechaCreacion).toLocaleDateString()} completed={true} isFirst={true} />
-            <WorkflowStep label="En Progreso" date={ticketData.estado === 'EN_PROCESO' ? 'En atención' : ''} active={ticketData.estado === 'EN_PROCESO'} completed={ticketData.estado === 'RESUELTO' || ticketData.estado === 'CERRADO'} />
-            <WorkflowStep label="Resuelto" active={ticketData.estado === 'RESUELTO'} completed={ticketData.estado === 'CERRADO'} isLast={true} />
+        <div className="mb-8">
+            <div className="flex items-center justify-between text-[11px] text-gray-500 font-semibold mb-2 px-1">
+                <span>Estado operativo del ticket</span>
+                <span>{ticketData.workflowStateKey || ticketData.estado || "Sin estado"}</span>
+            </div>
+            <div className="flex w-full filter drop-shadow-md px-1">
+                <WorkflowStep
+                    label="Nuevo"
+                    date={ticketData.fechaCreacion ? new Date(ticketData.fechaCreacion).toLocaleDateString() : ""}
+                    active={workflowStepIndex === 0}
+                    completed={workflowStepIndex > 0}
+                />
+                <WorkflowStep
+                    label="En Progreso - Asignado "
+                    date={workflowStepIndex === 1 ? (ticketData.workflowStateKey || "En atención") : ""}
+                    active={workflowStepIndex === 1}
+                    completed={workflowStepIndex > 1}
+                />
+                <WorkflowStep
+                    label="Resuelto"
+                    date={workflowStepIndex === 2 ? (ticketData.workflowStateKey || ticketData.estado) : ""}
+                    active={workflowStepIndex === 2}
+                    completed={workflowStepIndex > 2}
+                />
+            </div>
         </div>
 
         {/* CONTENIDO PRINCIPAL */}
@@ -410,8 +527,49 @@ function DetalleTicket({ ticket, usuarioActual, alVolver }) {
                     )}
 
                     {activeTab === 'LOG' && (
-                        <div className="border-l-2 border-gray-200 ml-4 space-y-6">
-                            {historial.map(h => <div key={h.id} className="pl-6"><span className="text-xs text-gray-400">{new Date(h.fecha).toLocaleString()}</span><p className="font-bold text-sm">{h.accion}</p><p className="text-sm bg-white p-2 border rounded">{h.detalle}</p></div>)}
+                        <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-6">
+                            <div className="border-l-2 border-gray-200 ml-4 space-y-6">
+                                {historial.map(h => <div key={h.id} className="pl-6"><span className="text-xs text-gray-400">{new Date(h.fecha).toLocaleString()}</span><p className="font-bold text-sm">{h.accion}</p><p className="text-sm bg-white p-2 border rounded">{h.detalle}</p></div>)}
+                            </div>
+                            <aside className="bg-white border border-gray-100 rounded-xl p-4 h-fit shadow-sm">
+                                <div className="flex flex-wrap items-center gap-2 mb-3">
+                                    <span className="text-xs font-bold uppercase tracking-wide text-gray-500">Workflow Runtime</span>
+                                    <span className="text-xs px-2 py-1 rounded bg-slate-100 text-slate-700 font-semibold">
+                                        Proceso: {ticketData.processType || "N/A"}
+                                    </span>
+                                    <span className="text-xs px-2 py-1 rounded bg-cyan-50 text-cyan-700 font-semibold">
+                                        Estado: {ticketData.workflowStateKey || "N/A"}
+                                    </span>
+                                    <span className="text-xs px-2 py-1 rounded bg-amber-50 text-amber-700 font-semibold">
+                                        Instancia: {ticketData.workflowInstanceId || "N/A"}
+                                    </span>
+                                    <span className="text-xs px-2 py-1 rounded bg-purple-50 text-purple-700 font-semibold">
+                                        Definicion: {ticketData.workflowKey || "N/A"}
+                                    </span>
+                                </div>
+                                <div className="flex items-center justify-between gap-3 mb-2">
+                                    <p className="text-xs text-gray-500">
+                                        Transiciones disponibles
+                                    </p>
+                                    {cargandoTransiciones && <span className="text-xs text-gray-400">Actualizando...</span>}
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                    {transicionesDisponibles.length === 0 && !cargandoTransiciones && (
+                                        <span className="text-xs text-gray-400">No hay transiciones disponibles.</span>
+                                    )}
+                                    {transicionesDisponibles.map((transition) => (
+                                        <button
+                                            key={`${transition.eventKey}-${transition.toStateKey || "state"}`}
+                                            onClick={() => handleEjecutarTransicion(transition)}
+                                            disabled={ejecutandoEventoKey === transition.eventKey}
+                                            className="px-3 py-1.5 rounded-lg border border-teal-200 bg-teal-50 text-teal-700 text-xs font-bold hover:bg-teal-100 disabled:opacity-50"
+                                            title={transition.name || transition.eventKey}
+                                        >
+                                            {ejecutandoEventoKey === transition.eventKey ? "Ejecutando..." : (transition.name || transition.eventKey)}
+                                        </button>
+                                    ))}
+                                </div>
+                            </aside>
                         </div>
                     )}
                 </div>

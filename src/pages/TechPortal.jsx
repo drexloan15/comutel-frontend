@@ -8,6 +8,7 @@ import TicketTable from '../components/TicketTable';             // Para "Incide
 import DetalleTicket from '../components/DetalleTicket'; 
 import AdminUsers from '../components/AdminUsers';               // Para "Administración -> Usuarios"
 import AdminGroups from '../components/AdminGroups';             // Para "Administración -> Grupos"
+import WorkflowDesigner from '../components/WorkflowDesigner';
 import GestorKB from '../components/GestorKB';                   // Para "Base Conocimiento"
 import RolesPermisos from '../components/RolesPermisos';
 import { normalizeRole } from '../constants/permissions';
@@ -55,6 +56,9 @@ function TechPortal({
             case 'GRUPOS':
             case 'ADMIN_GROUPS':
                 return puedeVerAdmin ? <AdminGroups /> : <DashboardGraficos usuarioActual={usuario} />;
+
+            case 'WORKFLOWS':
+                return puedeVerAdmin ? <WorkflowDesigner /> : <DashboardGraficos usuarioActual={usuario} />;
 
             case 'ADMINISTRACION': // Caso genérico si hacen clic en el padre
                 return puedeVerAdmin ? <AdminUsers usuarioActual={usuario} /> : <DashboardGraficos usuarioActual={usuario} />;
@@ -126,6 +130,7 @@ function TechPortal({
                             {ticketSeleccionado ? `Ticket #${ticketSeleccionado.id}` : 
                              (vista === 'USUARIOS' || vista === 'ADMINISTRACION') ? 'Gestión de Usuarios' :
                              vista === 'GRUPOS' ? 'Gestión de Grupos' :
+                             vista === 'WORKFLOWS' ? 'Diseñador de Workflows' :
                              vista === 'ROLES' ? 'Roles y Permisos' :
                              vista === 'KB' ? 'Base de Conocimiento' : vista}
                         </h1>
