@@ -1,3 +1,129 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+  --itsm-primary: #2563eb;
+  --itsm-secondary: #0f172a;
+  --itsm-accent: #14b8a6;
+  --itsm-app-bg: #f1f5f9;
+  --itsm-text: #0f172a;
+  --itsm-panel: #0f172a;
+  --itsm-panel-text: #e2e8f0;
+  --itsm-panel-muted-text: #94a3b8;
+  --itsm-header-bg: #ffffff;
+  --itsm-header-text: #334155;
+  --itsm-card-bg: #ffffff;
+  --itsm-card-border: #e2e8f0;
+  --itsm-input-bg: #ffffff;
+  --itsm-input-text: #0f172a;
+  --itsm-input-border: #cbd5e1;
+  --itsm-table-header-bg: #e2e8f0;
+  --itsm-table-header-text: #0f172a;
+  --itsm-app-image: none;
+  --itsm-font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  --itsm-font-size: 15px;
+  --itsm-global-radius: 12px;
+  --itsm-btn-radius: 12px;
+  --itsm-btn-shadow: 0 12px 20px -10px rgba(15, 23, 42, 0.45);
+  --itsm-card-shadow: 0 12px 20px -10px rgba(15, 23, 42, 0.45);
+  --itsm-density-scale: 1;
+  --itsm-app-overlay-opacity: 0.92;
+  --itsm-btn-uppercase: none;
+  --itsm-header-blur: none;
+}
+
+body {
+  font-family: var(--itsm-font-family);
+  font-size: var(--itsm-font-size);
+  background-color: var(--itsm-app-bg);
+  color: var(--itsm-text);
+  background-image:
+    linear-gradient(rgba(255, 255, 255, var(--itsm-app-overlay-opacity)), rgba(255, 255, 255, var(--itsm-app-overlay-opacity))),
+    var(--itsm-app-image);
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-attachment: fixed;
+}
+
+.itsm-theme {
+  color: var(--itsm-text);
+}
+
+.itsm-theme button {
+  border-radius: var(--itsm-btn-radius);
+  text-transform: var(--itsm-btn-uppercase);
+}
+
+.itsm-theme .itsm-card {
+  background-color: var(--itsm-card-bg);
+  border-color: var(--itsm-card-border);
+  border-radius: var(--itsm-global-radius);
+  box-shadow: var(--itsm-card-shadow);
+}
+
+.itsm-theme input,
+.itsm-theme select,
+.itsm-theme textarea {
+  background-color: var(--itsm-input-bg);
+  color: var(--itsm-input-text);
+  border: 1px solid var(--itsm-input-border);
+  border-radius: calc(var(--itsm-global-radius) * 0.66);
+  min-height: calc(2.35rem * var(--itsm-density-scale));
+}
+
+.itsm-theme input:focus,
+.itsm-theme select:focus,
+.itsm-theme textarea:focus {
+  outline: 2px solid color-mix(in srgb, var(--itsm-primary) 42%, transparent);
+  outline-offset: 1px;
+}
+
+.itsm-theme table thead th {
+  background-color: var(--itsm-table-header-bg);
+  color: var(--itsm-table-header-text);
+}
+
+.itsm-theme [data-itsm-role='panel-text'] {
+  color: var(--itsm-panel-text);
+}
+
+.itsm-theme [data-itsm-role='panel-muted'] {
+  color: var(--itsm-panel-muted-text);
+}
+
+.itsm-top-header {
+  background-color: color-mix(in srgb, var(--itsm-header-bg) 92%, transparent);
+  color: var(--itsm-header-text);
+  backdrop-filter: var(--itsm-header-blur);
+  border-bottom: 1px solid var(--itsm-card-border);
+}
+
+:root[data-itsm-hide-header='1'] .itsm-top-header {
+  display: none;
+}
+
+:root[data-itsm-btn-style='solid'] .itsm-theme .itsm-primary-btn {
+  background-color: var(--itsm-primary);
+  color: #ffffff;
+  border: 1px solid transparent;
+  box-shadow: var(--itsm-btn-shadow);
+}
+
+:root[data-itsm-btn-style='outline'] .itsm-theme .itsm-primary-btn {
+  background-color: transparent;
+  color: var(--itsm-primary);
+  border: 1px solid var(--itsm-primary);
+  box-shadow: none;
+}
+
+:root[data-itsm-btn-style='gradient'] .itsm-theme .itsm-primary-btn {
+  background: linear-gradient(135deg, var(--itsm-primary) 0%, var(--itsm-accent) 100%);
+  color: #ffffff;
+  border: 1px solid transparent;
+  box-shadow: var(--itsm-btn-shadow);
+}
+
+.itsm-theme .itsm-primary-btn:hover {
+  filter: brightness(1.04);
+}

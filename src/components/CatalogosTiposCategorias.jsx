@@ -81,7 +81,9 @@ function CatalogosTiposCategorias() {
         clave: tipoForm.clave.trim().toUpperCase(),
         nombre: tipoForm.nombre.trim(),
         workflowKey: tipoForm.workflowKey.trim(),
+        descripcion: tipoForm.workflowKey.trim() || null,
         activo: Boolean(tipoForm.activo),
+        activa: Boolean(tipoForm.activo),
       };
       if (editingTipoId) {
         await catalogoService.actualizarTipo(editingTipoId, payload);
@@ -106,9 +108,12 @@ function CatalogosTiposCategorias() {
       const payload = {
         nombre: categoriaForm.nombre.trim(),
         processType: categoriaForm.processType,
+        tipo: categoriaForm.processType,
         rolAsignado: categoriaForm.rolAsignado.trim() || null,
         grupoDefectoId: categoriaForm.grupoDefectoId ? Number(categoriaForm.grupoDefectoId) : null,
+        grupoDefaultId: categoriaForm.grupoDefectoId ? Number(categoriaForm.grupoDefectoId) : null,
         activo: Boolean(categoriaForm.activo),
+        activa: Boolean(categoriaForm.activo),
       };
       if (editingCategoriaId) {
         await catalogoService.actualizarCategoria(editingCategoriaId, payload);

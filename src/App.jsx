@@ -8,6 +8,7 @@ import {
   canManageRoles,
   normalizeRole,
 } from './constants/permissions'
+import { hydrateBrandingConfig } from './utils/brandingTheme'
 
 function App() {
   const [usuarioLogueado, setUsuarioLogueado] = useState(null)
@@ -21,6 +22,7 @@ function App() {
   }
 
   useEffect(() => {
+    hydrateBrandingConfig()
     const sesionGuardada = localStorage.getItem('sesionComutel')
     if (sesionGuardada) {
       const datos = JSON.parse(sesionGuardada)

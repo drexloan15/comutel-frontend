@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Sidebar from '../components/layout/Sidebar';
 
 import DashboardGraficos from '../components/DashboardGraficos';
@@ -12,6 +12,8 @@ import CatalogosTiposCategorias from '../components/CatalogosTiposCategorias';
 import GestorKB from '../components/GestorKB';
 import RolesPermisos from '../components/RolesPermisos';
 import { normalizeRole } from '../constants/permissions';
+import PersonalizacionVisual from '../components/PersonalizacionVisual';
+import { hydrateBrandingConfig } from '../utils/brandingTheme';
 
 function TechPortal({
   usuario,
@@ -27,6 +29,10 @@ function TechPortal({
   const [ticketSeleccionado, setTicketSeleccionado] = useState(null);
   const rol = normalizeRole(usuario?.rol);
   const puedeVerRolesPermisos = puedeGestionarRoles && (rol === 'ADMIN' || rol === 'TESTERADMIN');
+
+  useEffect(() => {
+    hydrateBrandingConfig();
+  }, []);
 
   const renderContenido = () => {
     switch (vista) {
@@ -52,6 +58,9 @@ function TechPortal({
 
       case 'CATALOGOS':
         return puedeVerAdmin ? <CatalogosTiposCategorias /> : <DashboardGraficos usuarioActual={usuario} />;
+
+      case 'PERSONALIZACION':
+        return puedeVerAdmin ? <PersonalizacionVisual /> : <DashboardGraficos usuarioActual={usuario} />;
 
       case 'ADMINISTRACION':
         return puedeVerAdmin ? <AdminUsers usuarioActual={usuario} /> : <DashboardGraficos usuarioActual={usuario} />;
@@ -108,6 +117,8 @@ function TechPortal({
       ? 'Disenador de Flujos'
       : vista === 'CATALOGOS'
       ? 'Tipos y Categorias'
+      : vista === 'PERSONALIZACION'
+      ? 'Personalizacion Visual'
       : vista === 'ROLES'
       ? 'Roles y Permisos'
       : vista === 'KB'
@@ -117,7 +128,7 @@ function TechPortal({
   const mostrarHeader = !['PANEL', 'DASHBOARD', 'METRICAS', 'INICIO', 'BI'].includes(vista);
 
   return (
-    <div className="flex h-screen bg-slate-100 font-sans overflow-hidden">
+    <div className="itsm-theme flex h-screen font-sans overflow-hidden" style={{ backgroundColor: 'var(--itsm-app-bg)' }}>
       <Sidebar
         seccionActual={vista}
         setSeccionActual={(seccion) => {
@@ -134,10 +145,10 @@ function TechPortal({
 
       <main className="flex-1 overflow-auto relative flex flex-col">
         {mostrarHeader && (
-          <header className="bg-white p-4 shadow-sm sticky top-0 z-10 flex justify-between items-center shrink-0">
-            <h1 className="text-lg font-bold text-slate-700 uppercase tracking-wide">{tituloVista}</h1>
-            <div className="text-sm text-slate-500">
-              Usuario: <strong className="text-teal-600">{usuario.nombre}</strong>
+          <header className="itsm-top-header p-4 shadow-sm sticky top-0 z-10 flex justify-between items-center shrink-0">
+            <h1 className="text-lg font-bold uppercase tracking-wide">{tituloVista}</h1>
+            <div className="text-sm">
+              Usuario: <strong style={{ color: 'var(--itsm-primary)' }}>{usuario.nombre}</strong>
             </div>
           </header>
         )}

@@ -1,4 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import {
+  BRANDING_EVENT,
+  getButtonRadius,
+  loadBrandingConfig,
+} from '../../utils/brandingTheme';
 
 const Sidebar = ({
   seccionActual,
@@ -11,32 +16,58 @@ const Sidebar = ({
   onAlternarVista,
 }) => {
   const [colapsado, setColapsado] = useState(false);
+  const [branding, setBranding] = useState(() => loadBrandingConfig());
+
+  useEffect(() => {
+    const syncBranding = () => setBranding(loadBrandingConfig());
+    window.addEventListener(BRANDING_EVENT, syncBranding);
+    return () => {
+      window.removeEventListener(BRANDING_EVENT, syncBranding);
+    };
+  }, []);
 
   const menuItems = [
-    { id: 'PANEL', icono: '🏠', label: 'Inicio' },
-    { id: 'METRICAS', icono: '📊', label: 'Metricas' },
-    { id: 'TICKETS', icono: '📋', label: 'Incidencias' },
-    { id: 'KB', icono: '📚', label: 'Base Conocimiento' },
+    { id: 'PANEL', icono: 'IN', label: 'Inicio' },
+    { id: 'METRICAS', icono: 'BI', label: 'Metricas' },
+    { id: 'TICKETS', icono: 'TK', label: 'Incidencias' },
+    { id: 'KB', icono: 'KB', label: 'Base Conocimiento' },
   ];
 
   if (puedeVerAdmin) {
     menuItems.push({ type: 'separator', label: 'ADMINISTRACION' });
-    menuItems.push({ id: 'USUARIOS', icono: '👥', label: 'Usuarios' });
-    menuItems.push({ id: 'GRUPOS', icono: '🏢', label: 'Grupos' });
-    menuItems.push({ id: 'WORKFLOWS', icono: '🔗', label: 'Flujos' });
-    menuItems.push({ id: 'CATALOGOS', icono: '🧩', label: 'Tipos y Categorias' });
+    menuItems.push({ id: 'USUARIOS', icono: 'US', label: 'Usuarios' });
+    menuItems.push({ id: 'GRUPOS', icono: 'GR', label: 'Grupos' });
+    menuItems.push({ id: 'WORKFLOWS', icono: 'WF', label: 'Flujos' });
+    menuItems.push({ id: 'CATALOGOS', icono: 'CT', label: 'Tipos y Categorias' });
+    menuItems.push({ id: 'PERSONALIZACION', icono: 'BR', label: 'Personalizacion Visual' });
   }
 
   if (puedeGestionarRoles) {
     menuItems.push({ type: 'separator', label: 'SEGURIDAD' });
-    menuItems.push({ id: 'ROLES', icono: '🛡️', label: 'Roles / Permisos' });
+    menuItems.push({ id: 'ROLES', icono: 'RP', label: 'Roles / Permisos' });
   }
 
   return (
-    <div className={`h-screen bg-slate-900 text-white flex flex-col transition-all duration-300 ${colapsado ? 'w-20' : 'w-64'}`}>
+    <div
+      className={`h-screen flex flex-col transition-all duration-300 ${colapsado ? 'w-20' : branding.navCompact ? 'w-56' : 'w-64'}`}
+      style={{ backgroundColor: branding.panelColor, color: 'var(--itsm-panel-text)' }}
+    >
       <div className="p-4 flex items-center justify-between border-b border-slate-700 h-16 shrink-0">
-        {!colapsado && <span className="font-bold text-lg tracking-wider text-teal-400">COMUTEL SERVICES</span>}
-        <button onClick={() => setColapsado(!colapsado)} className="p-1 hover:bg-slate-700 rounded text-gray-300 ml-auto">
+        {!colapsado && (
+          <div className="flex items-center gap-2 min-w-0">
+            {branding.logoUrl ? (
+              <img src={branding.logoUrl} alt="logo empresa" className="h-8 w-8 rounded object-cover bg-white" />
+            ) : null}
+            <span className="font-bold text-sm tracking-wider truncate" style={{ color: branding.accentColor }}>
+              {branding.companyName}
+            </span>
+          </div>
+        )}
+        <button
+          onClick={() => setColapsado(!colapsado)}
+          className="p-1 hover:bg-white/10 rounded ml-auto"
+          data-itsm-role="panel-text"
+        >
           {colapsado ? '>' : '<'}
         </button>
       </div>
@@ -46,7 +77,7 @@ const Sidebar = ({
           {menuItems.map((item, index) => {
             if (item.type === 'separator') {
               return !colapsado ? (
-                <li key={`sep-${index}`} className="pt-4 pb-2 px-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                <li key={`sep-${index}`} className="pt-4 pb-2 px-3 text-[10px] font-bold uppercase tracking-widest" data-itsm-role="panel-muted">
                   {item.label}
                 </li>
               ) : null;
@@ -56,13 +87,26 @@ const Sidebar = ({
               <li key={item.id}>
                 <button
                   onClick={() => setSeccionActual(item.id)}
-                  className={`w-full flex items-center p-3 rounded-lg transition-all duration-200 group ${
+                  style={{
+                    borderRadius: getButtonRadius(branding.buttonShape),
+                    ...(seccionActual === item.id
+                      ? {
+                          background:
+                            branding.buttonStyle === 'gradient'
+                              ? `linear-gradient(135deg, ${branding.primaryColor}, ${branding.accentColor})`
+                              : branding.primaryColor,
+                          boxShadow: branding.buttonShadow ? '0 8px 18px -12px rgba(15, 23, 42, 0.9)' : 'none',
+                        }
+                      : {}),
+                  }}
+                  className={`w-full flex items-center p-3 transition-all duration-200 group ${
                     seccionActual === item.id
-                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
-                      : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                      ? 'text-white'
+                      : 'hover:bg-white/10'
                   }`}
+                  data-itsm-role={seccionActual === item.id ? 'panel-text' : 'panel-muted'}
                 >
-                  <span className={`text-xl transition-transform group-hover:scale-110 ${seccionActual === item.id ? 'scale-110' : ''}`}>
+                  <span className={`text-xs font-bold transition-transform group-hover:scale-110 ${seccionActual === item.id ? 'scale-110' : ''}`}>
                     {item.icono}
                   </span>
 
@@ -78,12 +122,15 @@ const Sidebar = ({
 
       <div className="p-4 border-t border-slate-700 shrink-0">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-sm font-bold shadow-lg">
+          <div
+            className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shadow-lg"
+            style={{ background: `linear-gradient(135deg, ${branding.primaryColor}, ${branding.accentColor})` }}
+          >
             JP
           </div>
           {!colapsado && (
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate text-white">Mi Perfil</p>
+              <p className="text-sm font-medium truncate" data-itsm-role="panel-text">Mi Perfil</p>
               {esSuperAdmin && (
                 <button
                   onClick={onAlternarVista}
