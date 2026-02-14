@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ticketService } from "../services/ticketService";
+import { catalogoService } from "../services/catalogoService";
 
 function TicketForm({ usuarioActual }) {
   const [titulo, setTitulo] = useState("");
@@ -7,6 +8,31 @@ function TicketForm({ usuarioActual }) {
   const [prioridad, setPrioridad] = useState("MEDIA");
   const [processType, setProcessType] = useState("");
   const [workflowKey, setWorkflowKey] = useState("");
+  const [categoriaId, setCategoriaId] = useState("");
+  const [tipos, setTipos] = useState([]);
+  const [categorias, setCategorias] = useState([]);
+
+  const categoriasFiltradas = useMemo(() => {
+    if (!processType) return categorias;
+    return categorias.filter((c) => String(c.processType || "").toUpperCase() === processType);
+  }, [categorias, processType]);
+
+  useEffect(() => {
+    const cargarCatalogos = async () => {
+      try {
+        const [tiposData, categoriasData] = await Promise.all([
+          catalogoService.listarTipos(),
+          catalogoService.listarCategorias(),
+        ]);
+        setTipos(Array.isArray(tiposData) ? tiposData : []);
+        setCategorias(Array.isArray(categoriasData) ? categoriasData : []);
+      } catch (error) {
+        console.error(error);
+      }
+    };
+
+    cargarCatalogos();
+  }, []);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -24,6 +50,7 @@ function TicketForm({ usuarioActual }) {
       usuarioId: usuarioActual.id,
       processType,
       workflowKey,
+      categoriaId,
     };
 
     ticketService.crear(nuevoTicket)
@@ -33,6 +60,7 @@ function TicketForm({ usuarioActual }) {
         setDescripcion("");
         setProcessType("");
         setWorkflowKey("");
+        setCategoriaId("");
         window.location.reload();
       })
       .catch((error) => {
@@ -104,17 +132,40 @@ function TicketForm({ usuarioActual }) {
         </div>
 
         <div style={{ marginBottom: "15px" }}>
-          <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>Tipo de proceso (opcional):</label>
+          <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>Tipo de ticket (opcional):</label>
           <select
             value={processType}
-            onChange={(e) => setProcessType(e.target.value)}
+            onChange={(e) => {
+              const selectedType = e.target.value;
+              setProcessType(selectedType);
+              const tipo = tipos.find((item) => item.clave === selectedType);
+              setWorkflowKey(tipo?.workflowKey || "");
+              setCategoriaId("");
+            }}
             style={{ width: "100%", padding: "10px", borderRadius: "5px", border: "1px solid #ddd" }}
           >
             <option value="">Seleccionar...</option>
-            <option value="INCIDENCIA">INCIDENCIA</option>
-            <option value="REQUERIMIENTO">REQUERIMIENTO</option>
-            <option value="CAMBIO">CAMBIO</option>
-            <option value="APROBACION">APROBACION</option>
+            {tipos.map((tipo) => (
+              <option key={tipo.id} value={tipo.clave}>
+                {tipo.nombre} ({tipo.clave})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div style={{ marginBottom: "15px" }}>
+          <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>Categoria (opcional):</label>
+          <select
+            value={categoriaId}
+            onChange={(e) => setCategoriaId(e.target.value)}
+            style={{ width: "100%", padding: "10px", borderRadius: "5px", border: "1px solid #ddd" }}
+          >
+            <option value="">Seleccionar...</option>
+            {categoriasFiltradas.map((categoria) => (
+              <option key={categoria.id} value={categoria.id}>
+                {categoria.nombre}
+              </option>
+            ))}
           </select>
         </div>
 

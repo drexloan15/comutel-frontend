@@ -58,6 +58,22 @@ export const workflowService = {
     return await parseJson(response, "Error agregando estado de workflow");
   },
 
+  actualizarEstado: async (definitionId, stateId, payload) => {
+    const response = await fetch(`${API_BASE_URL}/workflows/admin/definitions/${definitionId}/states/${stateId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    return await parseJson(response, "Error actualizando estado de workflow");
+  },
+
+  eliminarEstado: async (definitionId, stateId) => {
+    const response = await fetch(`${API_BASE_URL}/workflows/admin/definitions/${definitionId}/states/${stateId}`, {
+      method: "DELETE",
+    });
+    return await parseJson(response, "Error eliminando estado de workflow");
+  },
+
   agregarTransicion: async (definitionId, payload) => {
     const response = await fetch(`${API_BASE_URL}/workflows/admin/definitions/${definitionId}/transitions`, {
       method: "POST",
@@ -67,6 +83,22 @@ export const workflowService = {
     return await parseJson(response, "Error agregando transicion de workflow");
   },
 
+  actualizarTransicion: async (definitionId, transitionId, payload) => {
+    const response = await fetch(`${API_BASE_URL}/workflows/admin/definitions/${definitionId}/transitions/${transitionId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    return await parseJson(response, "Error actualizando transicion de workflow");
+  },
+
+  eliminarTransicion: async (definitionId, transitionId) => {
+    const response = await fetch(`${API_BASE_URL}/workflows/admin/definitions/${definitionId}/transitions/${transitionId}`, {
+      method: "DELETE",
+    });
+    return await parseJson(response, "Error eliminando transicion de workflow");
+  },
+
   agregarReglaAsignacion: async (definitionId, payload) => {
     const response = await fetch(`${API_BASE_URL}/workflows/admin/definitions/${definitionId}/assignment-rules`, {
       method: "POST",
@@ -74,6 +106,22 @@ export const workflowService = {
       body: JSON.stringify(payload),
     });
     return await parseJson(response, "Error agregando regla de asignacion");
+  },
+
+  actualizarReglaAsignacion: async (definitionId, ruleId, payload) => {
+    const response = await fetch(`${API_BASE_URL}/workflows/admin/definitions/${definitionId}/assignment-rules/${ruleId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    return await parseJson(response, "Error actualizando regla de asignacion");
+  },
+
+  eliminarReglaAsignacion: async (definitionId, ruleId) => {
+    const response = await fetch(`${API_BASE_URL}/workflows/admin/definitions/${definitionId}/assignment-rules/${ruleId}`, {
+      method: "DELETE",
+    });
+    return await parseJson(response, "Error eliminando regla de asignacion");
   },
 
   listarSlaPolicies: async () => {

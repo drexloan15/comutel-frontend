@@ -32,6 +32,8 @@ const normalizarTicket = (ticket = {}) => ({
   workflowStateKey: ticket.workflowStateKey ?? null,
   processType: ticket.processType ?? null,
   workflowKey: ticket.workflowKey ?? null,
+  categoriaId: ticket.categoriaId ?? null,
+  categoria: ticket.categoria ?? null,
 });
 
 const normalizarListaTickets = (tickets) => {
@@ -67,6 +69,14 @@ const buildCrearTicketPayload = (ticket = {}) => {
 
   if (ticket.workflowKey) {
     payload.workflowKey = String(ticket.workflowKey).trim();
+  }
+
+  if (ticket.categoriaId != null && ticket.categoriaId !== "") {
+    const categoriaId = Number(ticket.categoriaId);
+    if (!Number.isFinite(categoriaId) || categoriaId <= 0) {
+      throw new Error("categoriaId invalido");
+    }
+    payload.categoriaId = categoriaId;
   }
 
   return payload;
@@ -150,6 +160,24 @@ export const ticketService = {
     });
 
     await leerError(response, "Error al derivar ticket");
+    const data = await response.json();
+    return normalizarTicket(data);
+  },
+
+  actualizarClasificacion: async (ticketId, payload) => {
+    const body = {
+      processType: payload?.processType ? String(payload.processType).trim().toUpperCase() : null,
+      categoriaId: payload?.categoriaId == null || payload?.categoriaId === "" ? null : Number(payload.categoriaId),
+      actorId: payload?.actorId == null ? null : Number(payload.actorId),
+    };
+
+    const response = await fetch(`${API_BASE_URL}/tickets/${ticketId}/clasificacion`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    await leerError(response, "Error actualizando clasificacion");
     const data = await response.json();
     return normalizarTicket(data);
   },

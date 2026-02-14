@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, useRef } from "react";
 import { ticketService } from '../services/ticketService';
 import { workflowService } from "../services/workflowService";
 import { groupService } from '../services/groupService';
+import { catalogoService } from "../services/catalogoService";
 import { API_BASE_URL, buildApiUrl } from "../constants/api";
 import ContadorSLA from './ContadorSLA'; 
 
@@ -47,6 +48,13 @@ function DetalleTicket({ ticket, usuarioActual, alVolver }) {
   const [transicionesDisponibles, setTransicionesDisponibles] = useState([]);
   const [cargandoTransiciones, setCargandoTransiciones] = useState(false);
   const [ejecutandoEventoKey, setEjecutandoEventoKey] = useState(null);
+  const [tiposTicket, setTiposTicket] = useState([]);
+  const [categoriasTicket, setCategoriasTicket] = useState([]);
+  const [clasificacionForm, setClasificacionForm] = useState({
+    processType: "",
+    categoriaId: "",
+  });
+  const [guardandoClasificacion, setGuardandoClasificacion] = useState(false);
 
   // --- MODALES ---
   const [modalResolverOpen, setModalResolverOpen] = useState(false);
@@ -116,6 +124,30 @@ function DetalleTicket({ ticket, usuarioActual, alVolver }) {
     const interval = setInterval(() => cargarDatos(true), 5000);
     return () => clearInterval(interval);
   }, [ticket.id]);
+
+  useEffect(() => {
+    const cargarCatalogos = async () => {
+      try {
+        const [tiposData, categoriasData] = await Promise.all([
+          catalogoService.listarTipos(),
+          catalogoService.listarCategorias(),
+        ]);
+        setTiposTicket(Array.isArray(tiposData) ? tiposData : []);
+        setCategoriasTicket(Array.isArray(categoriasData) ? categoriasData : []);
+      } catch (error) {
+        console.error(error);
+      }
+    };
+
+    cargarCatalogos();
+  }, []);
+
+  useEffect(() => {
+    setClasificacionForm({
+      processType: ticketData?.processType || "",
+      categoriaId: ticketData?.categoriaId ? String(ticketData.categoriaId) : "",
+    });
+  }, [ticketData?.id, ticketData?.processType, ticketData?.categoriaId]);
 
   const cargarDatos = async (silencioso = false) => {
     try {
@@ -231,6 +263,37 @@ function DetalleTicket({ ticket, usuarioActual, alVolver }) {
       await ejecutarEventoWorkflow(eventKey);
     } catch {
       // El error ya se notifica en ejecutarEventoWorkflow.
+    }
+  };
+
+  const categoriasFiltradas = !clasificacionForm.processType
+    ? categoriasTicket
+    : categoriasTicket.filter(
+        (categoria) => String(categoria.processType || "").toUpperCase() === clasificacionForm.processType
+      );
+
+  const handleGuardarClasificacion = async () => {
+    try {
+      setGuardandoClasificacion(true);
+      const tipo = tiposTicket.find((item) => item.clave === clasificacionForm.processType);
+      await ticketService.actualizarClasificacion(ticketData.id, {
+        processType: clasificacionForm.processType || null,
+        categoriaId: clasificacionForm.categoriaId ? Number(clasificacionForm.categoriaId) : null,
+        actorId: usuarioActual?.id,
+      });
+
+      if (tipo?.workflowKey && !ticketData.workflowKey) {
+        // El backend define el workflow final, aqui solo se informa al usuario.
+        console.info("Workflow sugerido por tipo:", tipo.workflowKey);
+      }
+
+      await cargarDatos();
+      alert("Clasificacion actualizada.");
+    } catch (error) {
+      console.error(error);
+      alert(error?.message || "No se pudo actualizar la clasificacion.");
+    } finally {
+      setGuardandoClasificacion(false);
     }
   };
   const handleEnviarCorreo = async () => { /* ... igual que antes ... */ 
@@ -354,9 +417,9 @@ function DetalleTicket({ ticket, usuarioActual, alVolver }) {
         <div className="flex flex-col lg:flex-row gap-6 h-full min-h-0">
             <div className="flex-1 bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col overflow-hidden">
                 <div className="flex border-b">
-                    {['PROGRESO', 'ANEXOS', 'ACTIVOS', 'LOG'].map(tab => (
+                    {['PROGRESO', 'ANEXOS', 'ACTIVOS', 'LOG', 'CLASIFICACION'].map(tab => (
                         <button key={tab} onClick={() => setActiveTab(tab)} className={`px-6 py-4 text-sm font-bold border-b-2 transition ${activeTab === tab ? 'border-teal-500 text-teal-600 bg-teal-50/50' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
-                            {tab === 'PROGRESO' ? 'Progreso' : tab === 'ANEXOS' ? `Anexos` : tab === 'ACTIVOS' ? `Activos` : 'Log'}
+                            {tab === 'PROGRESO' ? 'Progreso' : tab === 'ANEXOS' ? 'Anexos' : tab === 'ACTIVOS' ? 'Activos' : tab === 'LOG' ? 'Log' : 'Clasificacion'}
                         </button>
                     ))}
                 </div>
@@ -570,6 +633,69 @@ function DetalleTicket({ ticket, usuarioActual, alVolver }) {
                                     ))}
                                 </div>
                             </aside>
+                        </div>
+                    )}
+
+                    {activeTab === 'CLASIFICACION' && (
+                        <div className="max-w-3xl">
+                            <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+                                <h3 className="text-lg font-bold text-gray-800 mb-2">Clasificacion del ticket</h3>
+                                <p className="text-sm text-gray-500 mb-4">
+                                    Define tipo y categoria. Si la categoria tiene grupo por defecto, el backend puede derivar el ticket automaticamente.
+                                </p>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Tipo</label>
+                                        <select
+                                            className="w-full border border-gray-200 rounded-lg p-2.5"
+                                            value={clasificacionForm.processType}
+                                            onChange={(e) => setClasificacionForm({
+                                                processType: e.target.value,
+                                                categoriaId: "",
+                                            })}
+                                        >
+                                            <option value="">Seleccionar tipo</option>
+                                            {tiposTicket.map((tipo) => (
+                                                <option key={tipo.id} value={tipo.clave}>{tipo.nombre} ({tipo.clave})</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Categoria</label>
+                                        <select
+                                            className="w-full border border-gray-200 rounded-lg p-2.5"
+                                            value={clasificacionForm.categoriaId}
+                                            onChange={(e) => setClasificacionForm((prev) => ({ ...prev, categoriaId: e.target.value }))}
+                                        >
+                                            <option value="">Seleccionar categoria</option>
+                                            {categoriasFiltradas.map((categoria) => (
+                                                <option key={categoria.id} value={categoria.id}>
+                                                    {categoria.nombre}
+                                                    {categoria.grupoDefectoNombre ? ` - ${categoria.grupoDefectoNombre}` : ""}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div className="mt-4 rounded-lg bg-slate-50 border border-slate-200 p-3 text-xs text-slate-600">
+                                    <p>Tipo actual: <strong>{ticketData.processType || "No definido"}</strong></p>
+                                    <p>Categoria actual: <strong>{ticketData.categoria || "No definida"}</strong></p>
+                                    <p>Estado workflow: <strong>{ticketData.workflowStateKey || ticketData.estado || "No definido"}</strong></p>
+                                </div>
+
+                                <div className="mt-4 flex justify-end">
+                                    <button
+                                        type="button"
+                                        onClick={handleGuardarClasificacion}
+                                        disabled={guardandoClasificacion}
+                                        className="px-4 py-2 rounded-lg bg-cyan-600 text-white font-bold text-sm disabled:opacity-50"
+                                    >
+                                        {guardandoClasificacion ? "Guardando..." : "Guardar clasificacion"}
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     )}
                 </div>

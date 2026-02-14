@@ -4,9 +4,32 @@ import { workflowService } from "../services/workflowService";
 const PROCESS_TYPES = ["INCIDENCIA", "REQUERIMIENTO", "CAMBIO", "APROBACION"];
 const STATE_TYPES = ["START", "NORMAL", "END"];
 
-const NODE_WIDTH = 220;
-const NODE_HEIGHT = 120;
+const NODE_WIDTH = 180;
+const NODE_HEIGHT = 102;
 const STORAGE_PREFIX = "workflow-layout";
+const EVENT_LABELS = {
+  ASSIGN_TECHNICIAN: "Asignar técnico",
+  TAKE_OWNERSHIP: "Tomar caso",
+  START_WORK: "Iniciar trabajo",
+  RESOLVE: "Resolver",
+  CLOSE: "Cerrar",
+  ESCALATE: "Escalar",
+  NEXT: "Siguiente",
+};
+
+const STATE_TYPE_LABELS = {
+  START: "INICIO",
+  NORMAL: "NORMAL",
+  END: "FIN",
+};
+
+const STATE_KEY_LABELS = {
+  NEW: "Nuevo",
+  ASSIGNED: "Asignado",
+  IN_PROGRESS: "En proceso",
+  RESOLVED: "Resuelto",
+  CLOSED: "Cerrado",
+};
 
 const sortStates = (states = []) => {
   const orderMap = { START: 0, NORMAL: 1, END: 2 };
@@ -25,6 +48,9 @@ const getTypeGradient = (stateType) => {
 };
 
 const getStorageKey = (definitionId) => `${STORAGE_PREFIX}-${definitionId}`;
+const formatStateType = (stateType) => STATE_TYPE_LABELS[stateType] || stateType || "No aplica";
+const formatStateKey = (stateKey) => STATE_KEY_LABELS[stateKey] || stateKey || "No aplica";
+const formatEventKey = (eventKey) => EVENT_LABELS[eventKey] || eventKey || "No aplica";
 
 function WorkflowDesigner() {
   const [definitions, setDefinitions] = useState([]);
@@ -36,9 +62,13 @@ function WorkflowDesigner() {
   const [nodePositions, setNodePositions] = useState({});
   const [selectedStateKey, setSelectedStateKey] = useState(null);
   const [selectedTransitionId, setSelectedTransitionId] = useState(null);
+  const [editingStateId, setEditingStateId] = useState(null);
+  const [editingTransitionId, setEditingTransitionId] = useState(null);
   const [dragging, setDragging] = useState(null);
   const [connecting, setConnecting] = useState(null);
   const [quickTransitionOpen, setQuickTransitionOpen] = useState(false);
+  const [ayudaAbierta, setAyudaAbierta] = useState(false);
+  const [nodeSize, setNodeSize] = useState({ width: 180, height: 102 });
 
   const canvasRef = useRef(null);
 
@@ -55,6 +85,7 @@ function WorkflowDesigner() {
     stateType: "NORMAL",
     externalStatus: "",
     uiColor: "",
+    slaPolicyId: "",
   });
 
   const [newTransition, setNewTransition] = useState({
@@ -63,6 +94,7 @@ function WorkflowDesigner() {
     eventKey: "",
     name: "",
     priority: 100,
+    active: true,
     conditionExpression: "",
   });
 
@@ -77,6 +109,12 @@ function WorkflowDesigner() {
 
   const states = sortStates(detail?.states || []);
   const transitions = detail?.transitions || [];
+  const selectedDefinition = useMemo(
+    () => definitions.find((item) => item.id === selectedDefinitionId) || null,
+    [definitions, selectedDefinitionId]
+  );
+  const NODE_WIDTH = nodeSize.width;
+  const NODE_HEIGHT = nodeSize.height;
 
   const selectedState = useMemo(
     () => states.find((state) => state.stateKey === selectedStateKey) || null,
@@ -87,6 +125,30 @@ function WorkflowDesigner() {
     () => transitions.find((transition) => transition.id === selectedTransitionId) || null,
     [transitions, selectedTransitionId]
   );
+
+  const resetStateForm = () => {
+    setEditingStateId(null);
+    setNewState({
+      stateKey: "",
+      name: "",
+      stateType: "NORMAL",
+      externalStatus: "",
+      uiColor: "",
+      slaPolicyId: "",
+    });
+  };
+
+  const resetTransitionForm = () => {
+    setEditingTransitionId(null);
+    setNewTransition((prev) => ({
+      ...prev,
+      eventKey: "",
+      name: "",
+      conditionExpression: "",
+      priority: 100,
+      active: true,
+    }));
+  };
 
   const loadDefinitions = async () => {
     try {
@@ -99,7 +161,7 @@ function WorkflowDesigner() {
       }
     } catch (error) {
       console.error(error);
-      alert(error?.message || "No se pudieron cargar los workflows");
+      alert(error?.message || "No se pudieron cargar los flujos");
     } finally {
       setLoading(false);
     }
@@ -121,11 +183,13 @@ function WorkflowDesigner() {
         fromStateKey: firstState,
         toStateKey: firstState,
       }));
+      resetStateForm();
+      setEditingTransitionId(null);
       setSelectedStateKey(firstState || null);
       setSelectedTransitionId(null);
     } catch (error) {
       console.error(error);
-      alert(error?.message || "No se pudo cargar el detalle del workflow");
+      alert(error?.message || "No se pudo cargar el detalle del flujo");
     } finally {
       setLoading(false);
     }
@@ -170,6 +234,23 @@ function WorkflowDesigner() {
 
     setNodePositions(next);
   }, [selectedDefinitionId, detail?.id, states.length]);
+
+  useEffect(() => {
+    const updateNodeSize = () => {
+      const width = window.innerWidth;
+      if (width < 1200) {
+        setNodeSize({ width: 152, height: 92 });
+      } else if (width < 1500) {
+        setNodeSize({ width: 168, height: 98 });
+      } else {
+        setNodeSize({ width: 180, height: 102 });
+      }
+    };
+
+    updateNodeSize();
+    window.addEventListener("resize", updateNodeSize);
+    return () => window.removeEventListener("resize", updateNodeSize);
+  }, []);
 
   useEffect(() => {
     if (!selectedDefinitionId || !Object.keys(nodePositions).length) return;
@@ -281,17 +362,23 @@ function WorkflowDesigner() {
     setQuickTransitionOpen(true);
   };
 
-  const saveTransition = async (payload) => {
+  const saveTransition = async (payload, transitionId = null) => {
     if (!selectedDefinitionId) return;
-    await workflowService.agregarTransicion(selectedDefinitionId, {
+    const body = {
       ...payload,
       fromStateKey: payload.fromStateKey.trim(),
       toStateKey: payload.toStateKey.trim(),
       eventKey: payload.eventKey.trim(),
       name: payload.name.trim(),
       priority: Number(payload.priority) || 100,
+      active: payload.active !== false,
       conditionExpression: payload.conditionExpression?.trim() || null,
-    });
+    };
+    if (transitionId) {
+      await workflowService.actualizarTransicion(selectedDefinitionId, transitionId, body);
+      return;
+    }
+    await workflowService.agregarTransicion(selectedDefinitionId, body);
   };
 
   const handleCreateDefinition = async (event) => {
@@ -306,10 +393,10 @@ function WorkflowDesigner() {
       });
       setNewDefinition({ key: "", name: "", processType: "INCIDENCIA", version: 1 });
       await loadDefinitions();
-      alert("Workflow creado");
+      alert("Flujo creado");
     } catch (error) {
       console.error(error);
-      alert(error?.message || "No se pudo crear el workflow");
+      alert(error?.message || "No se pudo crear el flujo");
     } finally {
       setSaving(false);
     }
@@ -321,16 +408,22 @@ function WorkflowDesigner() {
 
     try {
       setSaving(true);
-      await workflowService.agregarEstado(selectedDefinitionId, {
+      const payload = {
         ...newState,
         stateKey: newState.stateKey.trim(),
         name: newState.name.trim(),
         externalStatus: newState.externalStatus.trim() || null,
         uiColor: newState.uiColor.trim() || null,
-      });
-      setNewState({ stateKey: "", name: "", stateType: "NORMAL", externalStatus: "", uiColor: "" });
+        slaPolicyId: newState.slaPolicyId === "" ? null : Number(newState.slaPolicyId),
+      };
+      if (editingStateId) {
+        await workflowService.actualizarEstado(selectedDefinitionId, editingStateId, payload);
+      } else {
+        await workflowService.agregarEstado(selectedDefinitionId, payload);
+      }
+      resetStateForm();
       await loadDetail(selectedDefinitionId);
-      alert("Estado agregado");
+      alert(editingStateId ? "Estado actualizado" : "Estado agregado");
     } catch (error) {
       console.error(error);
       alert(error?.message || "No se pudo agregar el estado");
@@ -345,19 +438,13 @@ function WorkflowDesigner() {
 
     try {
       setSaving(true);
-      await saveTransition(newTransition);
-      setNewTransition((prev) => ({
-        ...prev,
-        eventKey: "",
-        name: "",
-        conditionExpression: "",
-        priority: 100,
-      }));
+      await saveTransition(newTransition, editingTransitionId);
+      resetTransitionForm();
       await loadDetail(selectedDefinitionId);
-      alert("Transicion agregada");
+      alert(editingTransitionId ? "Transición actualizada" : "Transición agregada");
     } catch (error) {
       console.error(error);
-      alert(error?.message || "No se pudo agregar la transicion");
+      alert(error?.message || "No se pudo agregar la transición");
     } finally {
       setSaving(false);
     }
@@ -372,25 +459,29 @@ function WorkflowDesigner() {
       await saveTransition(quickTransition);
       setQuickTransitionOpen(false);
       await loadDetail(selectedDefinitionId);
-      alert("Transicion creada desde el lienzo");
+      alert("Transición creada desde el lienzo");
     } catch (error) {
       console.error(error);
-      alert(error?.message || "No se pudo crear la transicion");
+      alert(error?.message || "No se pudo crear la transición");
     } finally {
       setSaving(false);
     }
   };
 
-  const handleActivateDefinition = async () => {
+  const handleToggleDefinition = async () => {
     if (!selectedDefinitionId) return;
     try {
       setSaving(true);
-      await workflowService.activarDefinicion(selectedDefinitionId);
+      if (selectedDefinition?.active) {
+        await workflowService.desactivarDefinicion(selectedDefinitionId);
+      } else {
+        await workflowService.activarDefinicion(selectedDefinitionId);
+      }
       await Promise.all([loadDefinitions(), loadDetail(selectedDefinitionId)]);
-      alert("Workflow activado");
+      alert(selectedDefinition?.active ? "Flujo desactivado" : "Flujo activado");
     } catch (error) {
       console.error(error);
-      alert(error?.message || "No se pudo activar el workflow");
+      alert(error?.message || "No se pudo actualizar el estado del flujo");
     } finally {
       setSaving(false);
     }
@@ -401,23 +492,78 @@ function WorkflowDesigner() {
     setSelectedStateKey(null);
   };
 
-  const duplicateTransitionToForm = () => {
+  const loadTransitionInForm = () => {
     if (!selectedTransition) return;
+    setEditingTransitionId(selectedTransition.id);
     setNewTransition({
       fromStateKey: selectedTransition.fromStateKey || "",
       toStateKey: selectedTransition.toStateKey || "",
       eventKey: selectedTransition.eventKey || "",
       name: selectedTransition.name || "",
       priority: selectedTransition.priority || 100,
+      active: selectedTransition.active !== false,
       conditionExpression: selectedTransition.conditionExpression || "",
     });
+  };
+
+  const loadStateInForm = () => {
+    if (!selectedState) return;
+    setEditingStateId(selectedState.id);
+    setNewState({
+      stateKey: selectedState.stateKey || "",
+      name: selectedState.name || "",
+      stateType: selectedState.stateType || "NORMAL",
+      externalStatus: selectedState.externalStatus || "",
+      uiColor: selectedState.uiColor || "",
+      slaPolicyId: selectedState.slaPolicyId ?? "",
+    });
+  };
+
+  const handleDeleteTransition = async () => {
+    if (!selectedDefinitionId || !selectedTransition) return;
+    if (!confirm(`Eliminar transición ${selectedTransition.eventKey}?`)) return;
+    try {
+      setSaving(true);
+      await workflowService.eliminarTransicion(selectedDefinitionId, selectedTransition.id);
+      setSelectedTransitionId(null);
+      if (editingTransitionId === selectedTransition.id) {
+        resetTransitionForm();
+      }
+      await loadDetail(selectedDefinitionId);
+      alert("Transición eliminada");
+    } catch (error) {
+      console.error(error);
+      alert(error?.message || "No se pudo eliminar la transición");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteState = async () => {
+    if (!selectedDefinitionId || !selectedState) return;
+    if (!confirm(`Eliminar estado ${selectedState.stateKey}?`)) return;
+    try {
+      setSaving(true);
+      await workflowService.eliminarEstado(selectedDefinitionId, selectedState.id);
+      setSelectedStateKey(null);
+      if (editingStateId === selectedState.id) {
+        resetStateForm();
+      }
+      await loadDetail(selectedDefinitionId);
+      alert("Estado eliminado");
+    } catch (error) {
+      console.error(error);
+      alert(error?.message || "No se pudo eliminar el estado");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
     <div className="h-full bg-slate-100 p-6">
       <div className="grid grid-cols-1 xl:grid-cols-[280px_1fr_360px] gap-6 h-full">
         <aside className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 overflow-y-auto">
-          <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500 mb-3">Workflows</h2>
+          <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500 mb-3">Flujos</h2>
           <div className="space-y-2">
             {definitions.map((def) => (
               <button
@@ -435,27 +581,39 @@ function WorkflowDesigner() {
                 </div>
               </button>
             ))}
-            {!loading && definitions.length === 0 && <p className="text-sm text-slate-400">Sin workflows</p>}
+            {!loading && definitions.length === 0 && <p className="text-sm text-slate-400">Sin flujos</p>}
           </div>
         </aside>
 
         <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 flex flex-col min-h-0">
           <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
             <div>
-              <h1 className="text-xl font-black text-slate-800">Workflow Designer</h1>
-              <p className="text-sm text-slate-500">Drag nodos y conecta estados arrastrando desde el puerto derecho</p>
+              <h1 className="text-xl font-black text-slate-800">Diseñador de Flujos</h1>
+              <p className="text-sm text-slate-500">Arrastra nodos y conecta estados desde el puerto derecho</p>
             </div>
-            <button
-              onClick={handleActivateDefinition}
-              disabled={!selectedDefinitionId || saving}
-              className="px-4 py-2 rounded-xl bg-emerald-600 text-white font-bold text-sm hover:bg-emerald-700 disabled:opacity-50"
-            >
-              Activar workflow
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setAyudaAbierta(true)}
+                className="h-10 w-10 rounded-full border border-slate-200 bg-white text-slate-600 font-black hover:bg-slate-50"
+                title="Ayuda para crear flujos"
+              >
+                ?
+              </button>
+              <button
+                onClick={handleToggleDefinition}
+                disabled={!selectedDefinitionId || saving}
+                className={`px-4 py-2 rounded-xl text-white font-bold text-sm disabled:opacity-50 ${
+                  selectedDefinition?.active ? "bg-amber-600 hover:bg-amber-700" : "bg-emerald-600 hover:bg-emerald-700"
+                }`}
+              >
+                {selectedDefinition?.active ? "Desactivar flujo" : "Activar flujo"}
+              </button>
+            </div>
           </div>
 
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 mb-3 text-xs font-semibold text-slate-600 flex flex-wrap gap-2">
-            <span className="px-2 py-1 rounded bg-white border border-slate-200">Estado seleccionado: {selectedStateKey || "Ninguno"}</span>
+            <span className="px-2 py-1 rounded bg-white border border-slate-200">Estado seleccionado: {formatStateKey(selectedStateKey) || "Ninguno"}</span>
             <span className="px-2 py-1 rounded bg-white border border-slate-200">Arista seleccionada: {selectedTransitionId || "Ninguna"}</span>
             <span className="px-2 py-1 rounded bg-white border border-slate-200">Estados: {states.length}</span>
             <span className="px-2 py-1 rounded bg-white border border-slate-200">Transiciones: {transitions.length}</span>
@@ -463,7 +621,7 @@ function WorkflowDesigner() {
 
           <div
             ref={canvasRef}
-            className="relative flex-1 min-h-[560px] rounded-2xl border border-slate-200 bg-[radial-gradient(#dbeafe_1px,transparent_1px)] [background-size:22px_22px] overflow-hidden"
+            className="relative flex-1 min-h-[430px] rounded-2xl border border-slate-200 bg-[radial-gradient(#dbeafe_1px,transparent_1px)] [background-size:20px_20px] overflow-hidden"
           >
             <svg className="absolute inset-0 w-full h-full">
               <defs>
@@ -495,7 +653,7 @@ function WorkflowDesigner() {
                       textAnchor="middle"
                       className="fill-slate-700 text-[10px] font-bold"
                     >
-                      {line.eventKey}
+                      {formatEventKey(line.eventKey)}
                     </text>
                   </g>
                 );
@@ -551,17 +709,17 @@ function WorkflowDesigner() {
                 >
                   <div className={`h-full rounded-2xl p-3 text-white bg-gradient-to-r ${getTypeGradient(state.stateType)} cursor-grab active:cursor-grabbing`}>
                     <div className="flex items-start justify-between gap-2">
-                      <p className="text-[10px] uppercase font-bold opacity-80">{state.stateType}</p>
-                      <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded">{state.stateKey}</span>
+                      <p className="text-[10px] uppercase font-bold opacity-80">{formatStateType(state.stateType)}</p>
+                      <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded">{formatStateKey(state.stateKey)}</span>
                     </div>
                     <h3 className="font-black text-base mt-1 leading-tight">{state.name}</h3>
-                    <p className="text-xs opacity-90 mt-2">Estado externo: {state.externalStatus || "N/A"}</p>
-                    <p className="text-[11px] opacity-80 mt-2">Drag para mover</p>
+                    <p className="text-xs opacity-90 mt-2">Estado externo: {state.externalStatus || "No aplica"}</p>
+                    <p className="text-[11px] opacity-80 mt-2">Arrastra para mover</p>
                   </div>
 
                   <button
                     type="button"
-                    title="Arrastra para crear transicion"
+                    title="Arrastra para crear transición"
                     onMouseDown={(event) => {
                       event.stopPropagation();
                       event.preventDefault();
@@ -588,14 +746,30 @@ function WorkflowDesigner() {
                 <p className="text-slate-400">Haz click en un nodo para ver detalles.</p>
               ) : (
                 <>
-                  <p className="text-slate-700">{selectedState.name} ({selectedState.stateKey})</p>
-                  <button
-                    type="button"
-                    className="mt-2 px-3 py-1.5 rounded bg-cyan-600 text-white font-bold"
-                    onClick={() => setNewTransition((prev) => ({ ...prev, fromStateKey: selectedState.stateKey }))}
-                  >
-                    Usar como FROM en formulario
-                  </button>
+                  <p className="text-slate-700">{selectedState.name} ({formatStateKey(selectedState.stateKey)})</p>
+                  <div className="mt-2 flex gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      className="px-3 py-1.5 rounded bg-cyan-600 text-white font-bold"
+                      onClick={() => setNewTransition((prev) => ({ ...prev, fromStateKey: selectedState.stateKey }))}
+                    >
+                      Usar como ORIGEN
+                    </button>
+                    <button
+                      type="button"
+                      className="px-3 py-1.5 rounded bg-indigo-600 text-white font-bold"
+                      onClick={loadStateInForm}
+                    >
+                      Editar estado
+                    </button>
+                    <button
+                      type="button"
+                      className="px-3 py-1.5 rounded bg-rose-600 text-white font-bold"
+                      onClick={handleDeleteState}
+                    >
+                      Eliminar estado
+                    </button>
+                  </div>
                 </>
               )}
             </div>
@@ -605,21 +779,23 @@ function WorkflowDesigner() {
                 <p className="text-slate-400">Haz click en una linea para ver acciones.</p>
               ) : (
                 <>
-                  <p className="text-slate-700">{selectedTransition.eventKey}: {selectedTransition.fromStateKey} -&gt; {selectedTransition.toStateKey}</p>
+                  <p className="text-slate-700">
+                    {formatEventKey(selectedTransition.eventKey)}: {formatStateKey(selectedTransition.fromStateKey)} -&gt; {formatStateKey(selectedTransition.toStateKey)}
+                  </p>
                   <div className="mt-2 flex gap-2">
                     <button
                       type="button"
                       className="px-3 py-1.5 rounded bg-indigo-600 text-white font-bold"
-                      onClick={duplicateTransitionToForm}
+                      onClick={loadTransitionInForm}
                     >
-                      Clonar a formulario
+                      Editar transición
                     </button>
                     <button
                       type="button"
-                      className="px-3 py-1.5 rounded bg-slate-200 text-slate-500 font-bold"
-                      onClick={() => alert("Editar/eliminar transiciones requiere endpoint PUT/DELETE en backend")}
+                      className="px-3 py-1.5 rounded bg-rose-600 text-white font-bold"
+                      onClick={handleDeleteTransition}
                     >
-                      Editar/Eliminar
+                      Eliminar
                     </button>
                   </div>
                 </>
@@ -630,9 +806,9 @@ function WorkflowDesigner() {
 
         <aside className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 overflow-y-auto space-y-5">
           <div>
-            <h3 className="text-sm font-bold text-slate-700 mb-2">Nueva definicion</h3>
+            <h3 className="text-sm font-bold text-slate-700 mb-2">Nueva definición</h3>
             <form className="space-y-2" onSubmit={handleCreateDefinition}>
-              <input className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="Key" value={newDefinition.key} onChange={(e) => setNewDefinition((prev) => ({ ...prev, key: e.target.value }))} required />
+              <input className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="Clave del flujo" value={newDefinition.key} onChange={(e) => setNewDefinition((prev) => ({ ...prev, key: e.target.value }))} required />
               <input className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="Nombre" value={newDefinition.name} onChange={(e) => setNewDefinition((prev) => ({ ...prev, name: e.target.value }))} required />
               <select className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" value={newDefinition.processType} onChange={(e) => setNewDefinition((prev) => ({ ...prev, processType: e.target.value }))}>
                 {PROCESS_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
@@ -643,35 +819,50 @@ function WorkflowDesigner() {
           </div>
 
           <div>
-            <h3 className="text-sm font-bold text-slate-700 mb-2">Nuevo estado</h3>
+            <h3 className="text-sm font-bold text-slate-700 mb-2">{editingStateId ? "Editar estado" : "Nuevo estado"}</h3>
             <form className="space-y-2" onSubmit={handleAddState}>
-              <input className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="stateKey" value={newState.stateKey} onChange={(e) => setNewState((prev) => ({ ...prev, stateKey: e.target.value }))} required />
+              <input className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="Clave de estado" value={newState.stateKey} onChange={(e) => setNewState((prev) => ({ ...prev, stateKey: e.target.value }))} required />
               <input className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="Nombre" value={newState.name} onChange={(e) => setNewState((prev) => ({ ...prev, name: e.target.value }))} required />
               <select className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" value={newState.stateType} onChange={(e) => setNewState((prev) => ({ ...prev, stateType: e.target.value }))}>
-                {STATE_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
+                {STATE_TYPES.map((type) => <option key={type} value={type}>{formatStateType(type)}</option>)}
               </select>
-              <input className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="externalStatus (opcional)" value={newState.externalStatus} onChange={(e) => setNewState((prev) => ({ ...prev, externalStatus: e.target.value }))} />
-              <input className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="uiColor (opcional)" value={newState.uiColor} onChange={(e) => setNewState((prev) => ({ ...prev, uiColor: e.target.value }))} />
-              <button disabled={saving || !selectedDefinitionId} className="w-full rounded-lg bg-cyan-600 text-white py-2 text-sm font-bold hover:bg-cyan-700 disabled:opacity-50">Agregar estado</button>
+              <input className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="Estado externo (opcional)" value={newState.externalStatus} onChange={(e) => setNewState((prev) => ({ ...prev, externalStatus: e.target.value }))} />
+              <input className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="Color UI (opcional)" value={newState.uiColor} onChange={(e) => setNewState((prev) => ({ ...prev, uiColor: e.target.value }))} />
+              <input type="number" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="ID de política SLA (opcional)" value={newState.slaPolicyId} onChange={(e) => setNewState((prev) => ({ ...prev, slaPolicyId: e.target.value }))} />
+              <button disabled={saving || !selectedDefinitionId} className="w-full rounded-lg bg-cyan-600 text-white py-2 text-sm font-bold hover:bg-cyan-700 disabled:opacity-50">{editingStateId ? "Actualizar estado" : "Agregar estado"}</button>
+              {editingStateId && (
+                <button type="button" onClick={resetStateForm} className="w-full rounded-lg bg-slate-200 text-slate-700 py-2 text-sm font-bold">
+                  Cancelar edición
+                </button>
+              )}
             </form>
           </div>
 
           <div>
-            <h3 className="text-sm font-bold text-slate-700 mb-2">Nueva transicion</h3>
+            <h3 className="text-sm font-bold text-slate-700 mb-2">{editingTransitionId ? "Editar transición" : "Nueva transición"}</h3>
             <form className="space-y-2" onSubmit={handleAddTransition}>
               <select className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" value={newTransition.fromStateKey} onChange={(e) => setNewTransition((prev) => ({ ...prev, fromStateKey: e.target.value }))} required>
                 <option value="">Desde estado</option>
-                {states.map((state) => <option key={`from-${state.stateKey}`} value={state.stateKey}>{state.name} ({state.stateKey})</option>)}
+                {states.map((state) => <option key={`from-${state.stateKey}`} value={state.stateKey}>{state.name} ({formatStateKey(state.stateKey)})</option>)}
               </select>
               <select className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" value={newTransition.toStateKey} onChange={(e) => setNewTransition((prev) => ({ ...prev, toStateKey: e.target.value }))} required>
                 <option value="">Hacia estado</option>
-                {states.map((state) => <option key={`to-${state.stateKey}`} value={state.stateKey}>{state.name} ({state.stateKey})</option>)}
+                {states.map((state) => <option key={`to-${state.stateKey}`} value={state.stateKey}>{state.name} ({formatStateKey(state.stateKey)})</option>)}
               </select>
-              <input className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="eventKey" value={newTransition.eventKey} onChange={(e) => setNewTransition((prev) => ({ ...prev, eventKey: e.target.value }))} required />
+              <input className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="Clave del evento" value={newTransition.eventKey} onChange={(e) => setNewTransition((prev) => ({ ...prev, eventKey: e.target.value }))} required />
               <input className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="Nombre" value={newTransition.name} onChange={(e) => setNewTransition((prev) => ({ ...prev, name: e.target.value }))} required />
               <input type="number" min="1" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="Prioridad" value={newTransition.priority} onChange={(e) => setNewTransition((prev) => ({ ...prev, priority: e.target.value }))} />
-              <input className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="conditionExpression (opcional)" value={newTransition.conditionExpression} onChange={(e) => setNewTransition((prev) => ({ ...prev, conditionExpression: e.target.value }))} />
-              <button disabled={saving || !selectedDefinitionId} className="w-full rounded-lg bg-indigo-600 text-white py-2 text-sm font-bold hover:bg-indigo-700 disabled:opacity-50">Agregar transicion</button>
+              <input className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="Expresión de condición (opcional)" value={newTransition.conditionExpression} onChange={(e) => setNewTransition((prev) => ({ ...prev, conditionExpression: e.target.value }))} />
+              <label className="flex items-center gap-2 text-xs text-slate-600 px-1">
+                <input type="checkbox" checked={newTransition.active} onChange={(e) => setNewTransition((prev) => ({ ...prev, active: e.target.checked }))} />
+                Activa
+              </label>
+              <button disabled={saving || !selectedDefinitionId} className="w-full rounded-lg bg-indigo-600 text-white py-2 text-sm font-bold hover:bg-indigo-700 disabled:opacity-50">{editingTransitionId ? "Actualizar transición" : "Agregar transición"}</button>
+              {editingTransitionId && (
+                <button type="button" onClick={resetTransitionForm} className="w-full rounded-lg bg-slate-200 text-slate-700 py-2 text-sm font-bold">
+                  Cancelar edición
+                </button>
+              )}
             </form>
           </div>
         </aside>
@@ -680,15 +871,15 @@ function WorkflowDesigner() {
       {quickTransitionOpen && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl border border-slate-200 shadow-xl w-full max-w-md p-5">
-            <h3 className="text-lg font-black text-slate-800 mb-1">Nueva transicion desde lienzo</h3>
+            <h3 className="text-lg font-black text-slate-800 mb-1">Nueva transición desde lienzo</h3>
             <p className="text-sm text-slate-500 mb-4">
-              {quickTransition.fromStateKey} -&gt; {quickTransition.toStateKey}
+              {formatStateKey(quickTransition.fromStateKey)} -&gt; {formatStateKey(quickTransition.toStateKey)}
             </p>
             <form className="space-y-2" onSubmit={handleQuickTransitionSubmit}>
-              <input className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="eventKey" value={quickTransition.eventKey} onChange={(e) => setQuickTransition((prev) => ({ ...prev, eventKey: e.target.value }))} required />
+              <input className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="Clave del evento" value={quickTransition.eventKey} onChange={(e) => setQuickTransition((prev) => ({ ...prev, eventKey: e.target.value }))} required />
               <input className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="Nombre" value={quickTransition.name} onChange={(e) => setQuickTransition((prev) => ({ ...prev, name: e.target.value }))} required />
               <input type="number" min="1" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="Prioridad" value={quickTransition.priority} onChange={(e) => setQuickTransition((prev) => ({ ...prev, priority: e.target.value }))} />
-              <input className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="conditionExpression (opcional)" value={quickTransition.conditionExpression} onChange={(e) => setQuickTransition((prev) => ({ ...prev, conditionExpression: e.target.value }))} />
+              <input className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="Expresión de condición (opcional)" value={quickTransition.conditionExpression} onChange={(e) => setQuickTransition((prev) => ({ ...prev, conditionExpression: e.target.value }))} />
               <div className="flex justify-end gap-2 pt-2">
                 <button
                   type="button"
@@ -702,10 +893,33 @@ function WorkflowDesigner() {
                   disabled={saving}
                   className="px-3 py-2 rounded-lg bg-cyan-600 text-white font-bold disabled:opacity-50"
                 >
-                  Guardar transicion
+                  Guardar transición
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {ayudaAbierta && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl w-full max-w-2xl p-6">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-xl font-black text-slate-800">Cómo usar el diseñador de flujos</h3>
+              <button className="h-8 w-8 rounded-full border border-slate-200 text-slate-600" onClick={() => setAyudaAbierta(false)}>x</button>
+            </div>
+            <div className="space-y-3 text-sm text-slate-700">
+              <p><strong>1.</strong> Crea una <strong>definición</strong> (nombre, clave, tipo de proceso y versión).</p>
+              <p><strong>2.</strong> Agrega los <strong>estados</strong> del flujo (ejemplo: Nuevo, En proceso, Resuelto, Cerrado).</p>
+              <p><strong>3.</strong> Organiza el diagrama arrastrando los nodos en el lienzo.</p>
+              <p><strong>4.</strong> Crea una transición arrastrando desde el botón <strong>+</strong> del nodo origen al nodo destino.</p>
+              <p><strong>5.</strong> Haz clic en una línea para editar/eliminar una transición.</p>
+              <p><strong>6.</strong> Haz clic en un nodo para editar/eliminar un estado.</p>
+              <p><strong>7.</strong> Cuando valides el diagrama, pulsa <strong>Activar flujo</strong> o <strong>Desactivar flujo</strong>.</p>
+            </div>
+            <div className="mt-4 flex justify-end">
+              <button className="px-4 py-2 rounded-lg bg-cyan-600 text-white font-bold" onClick={() => setAyudaAbierta(false)}>Entendido</button>
+            </div>
           </div>
         </div>
       )}

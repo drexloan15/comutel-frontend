@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ticketService } from '../services/ticketService';
 import { kbService } from '../services/kbService'; 
+import { catalogoService } from '../services/catalogoService';
 
 // --- UTILIDAD: Limpieza profunda de texto ---
 const stripHtml = (html) => {
@@ -98,12 +99,15 @@ function ClientePortal({ usuario, cerrarSesion, esSuperAdmin = false, onAlternar
     const [articuloLeido, setArticuloLeido] = useState(null);
     const [ticketActivo, setTicketActivo] = useState(null);
     const [busqueda, setBusqueda] = useState("");
+    const [tiposTicket, setTiposTicket] = useState([]);
+    const [categoriasTicket, setCategoriasTicket] = useState([]);
     const [nuevoTicket, setNuevoTicket] = useState({
         titulo: "",
         descripcion: "",
         prioridad: "MEDIA",
         processType: "",
         workflowKey: "",
+        categoriaId: "",
     });
     const articulosFiltrados = articulos.filter((a) =>
         a.titulo.toLowerCase().includes(busqueda.toLowerCase())
@@ -113,12 +117,16 @@ function ClientePortal({ usuario, cerrarSesion, esSuperAdmin = false, onAlternar
 
     const cargarDatos = async () => {
         try {
-            const [dataTickets, dataKb] = await Promise.all([
+            const [dataTickets, dataKb, tiposData, categoriasData] = await Promise.all([
                 ticketService.listar(),
-                kbService.listar()
+                kbService.listar(),
+                catalogoService.listarTipos(),
+                catalogoService.listarCategorias()
             ]);
             setTickets(dataTickets.filter(t => t.usuario?.id === usuario.id).sort((a,b) => b.id - a.id));
             setArticulos(dataKb);
+            setTiposTicket(Array.isArray(tiposData) ? tiposData : []);
+            setCategoriasTicket(Array.isArray(categoriasData) ? categoriasData : []);
         } catch (e) { console.error(e); }
     };
 
@@ -133,11 +141,16 @@ function ClientePortal({ usuario, cerrarSesion, esSuperAdmin = false, onAlternar
                 prioridad: "MEDIA",
                 processType: "",
                 workflowKey: "",
+                categoriaId: "",
             });
             setVista('HOME');
             cargarDatos();
         } catch (e) { alert("Error al crear ticket"); }
     };
+
+    const categoriasFiltradas = !nuevoTicket.processType
+        ? categoriasTicket
+        : categoriasTicket.filter((c) => String(c.processType || "").toUpperCase() === nuevoTicket.processType);
 
     const handleEnviarMensajeChat = async (ticketId, texto) => {
         await ticketService.agregarComentario(ticketId, { texto, autorId: usuario.id });
@@ -327,12 +340,26 @@ function ClientePortal({ usuario, cerrarSesion, esSuperAdmin = false, onAlternar
                                 <option value="ALTA">Prioridad Alta</option>
                                 <option value="BAJA">Prioridad Baja</option>
                             </select>
-                            <select className="w-full border rounded-lg p-3" value={nuevoTicket.processType} onChange={e => setNuevoTicket({...nuevoTicket, processType: e.target.value})}>
-                                <option value="">Tipo de proceso (opcional)</option>
-                                <option value="INCIDENCIA">INCIDENCIA</option>
-                                <option value="REQUERIMIENTO">REQUERIMIENTO</option>
-                                <option value="CAMBIO">CAMBIO</option>
-                                <option value="APROBACION">APROBACION</option>
+                            <select className="w-full border rounded-lg p-3" value={nuevoTicket.processType} onChange={e => {
+                                const processType = e.target.value;
+                                const tipo = tiposTicket.find((t) => t.clave === processType);
+                                setNuevoTicket({
+                                    ...nuevoTicket,
+                                    processType,
+                                    workflowKey: tipo?.workflowKey || "",
+                                    categoriaId: "",
+                                });
+                            }}>
+                                <option value="">Tipo de ticket (opcional)</option>
+                                {tiposTicket.map((tipo) => (
+                                    <option key={tipo.id} value={tipo.clave}>{tipo.nombre} ({tipo.clave})</option>
+                                ))}
+                            </select>
+                            <select className="w-full border rounded-lg p-3" value={nuevoTicket.categoriaId} onChange={e => setNuevoTicket({...nuevoTicket, categoriaId: e.target.value})}>
+                                <option value="">Categoria (opcional)</option>
+                                {categoriasFiltradas.map((categoria) => (
+                                    <option key={categoria.id} value={categoria.id}>{categoria.nombre}</option>
+                                ))}
                             </select>
                             <input className="w-full border rounded-lg p-3 outline-none focus:ring-2 focus:ring-blue-500" placeholder="Workflow key (opcional)" value={nuevoTicket.workflowKey} onChange={e => setNuevoTicket({...nuevoTicket, workflowKey: e.target.value})} />
                             <button type="submit" className="w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700">Enviar</button>
